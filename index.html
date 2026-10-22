@@ -1,0 +1,1883 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="description" content="Klondike solitaire that tells you when you're out of useful moves, and whether the deal could have been won.">
+<meta name="theme-color" content="#12301f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Solitaire">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px system-ui,sans-serif}
+[hidden]{display:none!important}
+</style>
+<title>Klondike Solitaire</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,600;0,6..96,700;1,6..96,600&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen card table. Status strip on top, felt board fills the middle, thumb toolbar at the bottom. */
+:root{
+  --felt:#235441;
+  --felt-deep:#12301f;
+  --ink:#f3efe4;
+  --ink-dim:rgba(243,239,228,.62);
+  --card:#fbf8f1;
+  --card-edge:#d8d0bf;
+  --red:#c1322b;
+  --black:#1c2026;
+  --back:#7b2431;
+  --brass:#d8b46a;
+  --loss:#e08a7a;
+  --panel:#0f281c;
+  --font-display:"Bodoni Moda","Didot","Bodoni 72",Georgia,serif;
+  --font-ui:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-suit:"Segoe UI Symbol","Apple Symbols","Noto Sans Symbols 2",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html{box-sizing:border-box;height:100%;background:var(--felt-deep)}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  height:100%;margin:0;overflow:hidden;
+  background:radial-gradient(ellipse 120% 80% at 50% 38%,var(--felt) 0%,var(--felt-deep) 100%),var(--felt-deep);
+  color:var(--ink);font-family:var(--font-ui);
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;
+}
+.app{height:100%;max-width:640px;margin:0 auto;padding-inline:16px;display:flex;flex-direction:column}
+
+/* status strip */
+.bar{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-block:12px 14px}
+.brand{font-family:var(--font-display);font-weight:700;font-size:22px;line-height:1;white-space:nowrap}
+.brand .deal{font-family:var(--font-ui);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);margin-left:8px}
+.stats{display:flex;gap:14px;font-size:13px;color:var(--ink-dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+.stats b{color:var(--ink);font-weight:600}
+
+/* table */
+.board{position:relative;flex:1;min-height:0;touch-action:none}
+.slot{
+  position:absolute;width:var(--cw);height:var(--ch);
+  border-radius:calc(var(--cw)*.1);border:1.5px solid rgba(243,239,228,.17);
+  background:rgba(0,0,0,.08);
+  display:grid;place-items:center;
+  color:rgba(243,239,228,.26);font-family:var(--font-display);font-weight:600;font-size:calc(var(--cw)*.42);
+}
+.slot.stock{cursor:pointer}
+.slot.stock span{font-family:var(--font-ui);font-weight:500;font-size:calc(var(--cw)*.5)}
+
+.card{
+  position:absolute;width:var(--cw);height:var(--ch);
+  perspective:700px;cursor:pointer;
+  transition:left .22s cubic-bezier(.2,.8,.2,1),top .22s cubic-bezier(.2,.8,.2,1);
+  transition-delay:var(--d,0ms);
+}
+.card.dragging{transition:none;cursor:grabbing}
+.inner{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateY(180deg);transition:transform .3s ease;transition-delay:var(--fd,0ms)}
+.card.up .inner{transform:rotateY(0deg)}
+.face,.back{
+  position:absolute;inset:0;border-radius:calc(var(--cw)*.1);
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+}
+.face{
+  background:var(--card);border:1px solid var(--card-edge);color:var(--black);
+  box-shadow:0 1px 0 rgba(0,0,0,.22),0 2px 6px rgba(0,0,0,.2);
+}
+.face.red{color:var(--red)}
+.back{
+  transform:rotateY(180deg);
+  background:
+    repeating-linear-gradient(45deg,rgba(216,180,106,.32) 0 1px,transparent 1px 5px),
+    repeating-linear-gradient(-45deg,rgba(216,180,106,.32) 0 1px,transparent 1px 5px),
+    var(--back);
+  border:1px solid var(--card-edge);
+  box-shadow:inset 0 0 0 calc(var(--cw)*.055) var(--card),0 1px 0 rgba(0,0,0,.22),0 2px 6px rgba(0,0,0,.2);
+}
+.rk{position:absolute;left:calc(var(--cw)*.08);top:calc(var(--cw)*.05);font-family:var(--font-display);font-weight:700;font-size:calc(var(--cw)*.34);line-height:1;letter-spacing:-.05em}
+.st{position:absolute;right:calc(var(--cw)*.08);top:calc(var(--cw)*.06);font-family:var(--font-suit);font-size:calc(var(--cw)*.3);line-height:1}
+.pip{position:absolute;inset-inline:0;bottom:calc(var(--ch)*.13);text-align:center;font-family:var(--font-suit);font-size:calc(var(--cw)*.62);line-height:1}
+.pip.court{font-family:var(--font-display);font-style:italic;font-weight:600;font-size:calc(var(--cw)*.6)}
+.still .card,.still .inner{transition:none!important}
+
+.card.hint .face,.slot.hint{animation:glow 1.3s ease-out}
+@keyframes glow{0%,60%{box-shadow:0 0 0 2px var(--brass),0 0 16px 2px rgba(216,180,106,.75)}100%{box-shadow:0 0 0 0 transparent}}
+.card.nope{animation:nope .26s}
+@keyframes nope{0%,100%{translate:0}25%{translate:-4px 0}75%{translate:4px 0}}
+
+/* toolbar */
+.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding-block:10px 12px}
+.tools button{
+  appearance:none;height:48px;border-radius:12px;
+  border:1px solid rgba(216,180,106,.35);background:rgba(0,0,0,.2);color:var(--ink);
+  font:600 14px/1 var(--font-ui);display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;
+}
+.tools button svg{width:18px;height:18px;stroke:var(--brass);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tools button:active{background:rgba(216,180,106,.14)}
+.tools button:disabled{opacity:.38}
+button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+/* sheets + win overlay */
+.overlay{position:fixed;inset:0;z-index:5000;background:rgba(4,14,9,.6);display:flex;justify-content:center}
+.sheet{align-items:flex-end}
+.panel{
+  width:100%;max-width:640px;background:var(--panel);border:1px solid rgba(216,180,106,.22);
+  display:grid;gap:10px;
+}
+.sheet .panel{border-radius:18px 18px 0 0;border-bottom:0;padding:20px 16px calc(16px + env(safe-area-inset-bottom,0px));animation:rise .2s ease-out}
+@keyframes rise{from{transform:translateY(24px);opacity:0}}
+.panel h2{margin:0 0 2px;font-family:var(--font-display);font-weight:700;font-size:24px;text-wrap:balance}
+.panel .note{margin:0 0 6px;color:var(--ink-dim);font-size:13px;font-variant-numeric:tabular-nums}
+.opt{
+  appearance:none;text-align:left;width:100%;cursor:pointer;
+  border:1px solid rgba(243,239,228,.14);background:rgba(255,255,255,.04);color:var(--ink);
+  border-radius:12px;padding:12px 14px;display:grid;gap:3px;font-family:var(--font-ui);
+}
+.opt b{font-size:15px;font-weight:600}
+.opt span{font-size:13px;color:var(--ink-dim)}
+.opt.current,.opt.lead{border-color:var(--brass)}
+.opt.lead{background:rgba(216,180,106,.12)}
+.opt:disabled{opacity:.4;cursor:default}
+.opt.plain{text-align:center;background:none;border-color:transparent;color:var(--ink-dim);font-size:15px;font-weight:500;padding-block:10px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pair .opt{text-align:center;padding-block:12px}
+
+/* verdict on the stuck sheet */
+.verdict{display:grid;gap:6px;padding:14px;border-radius:12px;background:rgba(0,0,0,.22);margin-bottom:4px}
+.chip{justify-self:start;display:inline-flex;align-items:center;gap:7px;padding:4px 10px 4px 8px;border-radius:999px;
+  font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border:1px solid currentColor}
+.chip i{font-style:normal;font-family:var(--font-suit);font-size:13px;letter-spacing:0;text-transform:none}
+.verdict[data-v="win"] .chip{color:var(--brass)}
+.verdict[data-v="lose"] .chip{color:var(--loss)}
+.verdict[data-v="unknown"] .chip,.verdict[data-v="pending"] .chip{color:var(--ink-dim)}
+.verdict[data-v="pending"] .chip i{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+.verdict p{margin:0;font-size:15px;line-height:1.45;max-width:60ch}
+
+.win{align-items:center;padding-inline:16px}
+.win .panel{border-radius:18px;padding:28px 20px 20px;text-align:center;max-width:360px;animation:pop .35s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{from{transform:scale(.85);opacity:0}}
+.win h2{font-size:40px;font-style:italic}
+.win .suits{font-family:var(--font-suit);font-size:20px;letter-spacing:.3em;color:var(--brass)}
+.primary{appearance:none;height:48px;border:0;border-radius:12px;background:var(--brass);color:#1a1408;font:600 15px var(--font-ui);cursor:pointer;margin-top:6px}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  z-index:4000;background:var(--panel);border:1px solid rgba(216,180,106,.3);color:var(--ink);
+  padding:10px 14px;border-radius:10px;font-size:14px;max-width:calc(100% - 32px);text-align:center;
+  transition:opacity .2s;pointer-events:none;
+}
+.toast.off{opacity:0}
+
+/* game review: replaces the toolbar while you step through a finished game */
+.review{display:grid;gap:8px;padding-block:8px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(216,180,106,.22)}
+.rv-head{display:flex;align-items:center;gap:8px}
+.seg{flex:1;display:grid;grid-template-columns:1fr 1fr;padding:3px;border-radius:11px;background:rgba(0,0,0,.28);border:1px solid rgba(243,239,228,.1)}
+.seg button{appearance:none;border:0;background:none;color:var(--ink-dim);font:600 13px/1 var(--font-ui);height:34px;border-radius:8px;cursor:pointer}
+.seg button[aria-selected="true"]{background:rgba(216,180,106,.18);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(216,180,106,.5)}
+.seg button:disabled{opacity:.35;cursor:default}
+.rv-icon{appearance:none;height:40px;min-width:40px;padding-inline:10px;border-radius:10px;border:1px solid rgba(243,239,228,.14);background:none;color:var(--ink);font:600 13px var(--font-ui);cursor:pointer}
+.rv-meta{display:flex;align-items:center;gap:8px;min-height:24px;font-size:12px;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+.rv-meta .count{letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.rv-meta .state{padding:2px 8px;border-radius:999px;border:1px solid currentColor;font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.rv-meta .state.ok{color:var(--brass)}
+.rv-meta .state.lost{color:var(--loss)}
+.rv-meta .state.maybe{color:var(--ink-dim)}
+.rv-meta .jump{margin-left:auto;appearance:none;border:0;background:none;color:var(--brass);font:600 13px var(--font-ui);cursor:pointer;padding:4px 0}
+.rv-body{min-height:64px;display:grid;gap:6px;align-content:start}
+.rv-text{margin:0;font-size:15px;line-height:1.4}
+.rv-sub{margin:0;font-size:13px;line-height:1.4;color:var(--ink-dim)}
+.rv-row{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:baseline;font-size:14.5px;line-height:1.35}
+.tag{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;white-space:nowrap}
+.tag.you{color:var(--felt-deep);background:var(--ink)}
+.tag.win{color:#1a1408;background:var(--brass)}
+.rv-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.rv-nav button{
+  appearance:none;height:46px;border-radius:12px;border:1px solid rgba(216,180,106,.35);background:rgba(0,0,0,.2);color:var(--ink);
+  font:600 14px/1 var(--font-ui);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.rv-nav button:active{background:rgba(216,180,106,.14)}
+.rv-nav button:disabled{opacity:.35}
+.rv-nav button.go{background:rgba(216,180,106,.16)}
+/* outlines on the table: white for your move, brass for the winning move */
+.card.mark-you::after,.card.mark-win::after{content:"";position:absolute;inset:-3px;border-radius:calc(var(--cw)*.13);pointer-events:none;z-index:2}
+.card.mark-you::after{border:2.5px solid var(--ink);box-shadow:0 0 10px rgba(243,239,228,.5)}
+.card.mark-win::after{border:2.5px solid var(--brass);box-shadow:0 0 12px rgba(216,180,106,.8)}
+.card.mark-you.mark-win::after{border-style:dashed}
+.slot.mark-you{border-color:var(--ink);border-width:2.5px}
+.slot.mark-win{border-color:var(--brass);border-width:2.5px}
+.opt.review-opt{border-color:rgba(216,180,106,.45)}
+.seg.level{grid-template-columns:repeat(3,1fr);flex:none}
+.seg.level button{height:38px;font-size:14px}
+
+@media (prefers-reduced-motion:reduce){
+  .card,.inner{transition:none!important}
+  .card.nope,.card.hint .face,.slot.hint,.panel,.verdict .chip i{animation:none!important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">Klondike<span class="deal" id="mode">Normal · Draw 1</span></div>
+    <div class="stats">
+      <span><b id="moves">0</b> moves</span>
+      <span><b id="time">0:00</b></span>
+    </div>
+  </header>
+  <main class="board" id="board" aria-label="Card table"></main>
+  <nav class="tools">
+    <button id="btnNew" type="button"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="11" height="15" rx="2"/><path d="M9 3h9a2 2 0 0 1 2 2v12"/></svg>New game</button>
+    <button id="btnHint" type="button"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>Hint</button>
+    <button id="btnUndo" type="button"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
+  </nav>
+  <section class="review" id="review" aria-label="Game review" hidden>
+    <div class="rv-head">
+      <div class="seg" role="tablist">
+        <button id="rvYou" type="button" role="tab" aria-selected="true">Your game</button>
+        <button id="rvWin" type="button" role="tab" aria-selected="false">Winning line</button>
+      </div>
+      <button class="rv-icon" id="rvReplay" type="button">Replay deal</button>
+      <button class="rv-icon" id="rvClose" type="button" aria-label="Close review">✕</button>
+    </div>
+    <div class="rv-meta">
+      <span class="count" id="rvCount"></span>
+      <span class="state" id="rvState" hidden></span>
+      <button class="jump" id="rvJump" type="button" hidden>Turning point</button>
+    </div>
+    <div class="rv-body" id="rvBody" aria-live="polite"></div>
+    <div class="rv-nav">
+      <button id="rvStart" type="button" aria-label="Back to the deal">⏮︎</button>
+      <button id="rvPrev" type="button">‹ Back</button>
+      <button id="rvNext" type="button" class="go">Next ›</button>
+      <button id="rvPlay" type="button">Play</button>
+    </div>
+  </section>
+</div>
+
+<div class="overlay sheet" id="sheet" hidden>
+  <div class="panel" role="dialog" aria-labelledby="sheetTitle">
+    <h2 id="sheetTitle">New game</h2>
+    <p class="note" id="record">No games played yet</p>
+    <div class="seg level" role="tablist" aria-label="Difficulty">
+      <button type="button" role="tab" data-level="easy">Easy</button>
+      <button type="button" role="tab" data-level="normal">Normal</button>
+      <button type="button" role="tab" data-level="hard">Hard</button>
+    </div>
+    <p class="note" id="levelNote"></p>
+    <button class="opt" id="optD1" type="button"><b>Deal · Draw 1</b><span>Turn one card at a time.</span></button>
+    <button class="opt" id="optD3" type="button"><b>Deal · Draw 3</b><span>Turn three at a time. The classic rules, and much harder.</span></button>
+    <button class="opt" id="optReplay" type="button"><b id="replayLabel">Replay this deal</b><span>Start the same cards over from the beginning.</span></button>
+    <button class="opt review-opt" id="optReview" type="button"><b>Review this game</b><span>Check whether it can still be won, and where it went wrong if not.</span></button>
+    <button class="opt plain" id="optClose" type="button">Keep playing</button>
+  </div>
+</div>
+
+<div class="overlay sheet" id="stuck" hidden>
+  <div class="panel" role="dialog" aria-labelledby="stuckTitle">
+    <h2 id="stuckTitle">No more useful moves</h2>
+    <p class="note" id="stuckNote"></p>
+    <div class="verdict" id="verdict" data-v="pending" aria-live="polite">
+      <span class="chip"><i id="verdictMark">♠&#xFE0E;</i><span id="verdictChip">Checking</span></span>
+      <p id="verdictText"></p>
+    </div>
+    <button class="opt review-opt" id="stReview" type="button"><b>Review this game</b><span>Find the move that lost it, and see the winning line from there.</span></button>
+    <div class="pair">
+      <button class="opt" id="stRestart" type="button"><b>Restart this deal</b></button>
+      <button class="opt" id="stNew" type="button"><b>New deal</b></button>
+    </div>
+    <button class="opt plain" id="stUndo" type="button">Undo last move</button>
+    <button class="opt plain" id="stClose" type="button">Look at the table</button>
+  </div>
+</div>
+
+<div class="overlay win" id="win" hidden>
+  <div class="panel" role="dialog" aria-labelledby="winTitle">
+    <div class="suits">♠&#xFE0E;♥&#xFE0E;♦&#xFE0E;♣&#xFE0E;</div>
+    <h2 id="winTitle">Solved</h2>
+    <p class="note" id="winLine"></p>
+    <p class="note" id="winRecord"></p>
+    <button class="primary" id="btnAgain" type="button">Deal another</button>
+  </div>
+</div>
+
+<div class="toast off" id="toast" role="status" aria-live="polite"></div>
+
+<script id="klsrc">
+// Klondike solver and "stuck" detector. Plain functions with no dependencies,
+// so the same file runs in the game's Web Worker and in Node tests.
+//
+// Positions use card numbers 0..51: suit * 13 + (rank - 1), suits in the order
+// spades, hearts, diamonds, clubs. A position is:
+//   { cols: [7 arrays, bottom card first], down: [face-down count per column],
+//     found: [cards on the foundation per suit], talon: [...], w, draw }
+// The talon is the waste and stock as one list in the order cards are dealt:
+// talon[0..w] is the waste (talon[w] on top), the rest is the stock.
+// Turning the stock moves w forward by `draw` cards; at the end it goes back to -1.
+
+var KL = (function () {
+  var OPP = [[1, 2], [0, 3], [0, 3], [1, 2]];
+  function suit(c) { return (c / 13) | 0; }
+  function rank(c) { return c % 13; }
+  function red(c) { var s = (c / 13) | 0; return s === 1 || s === 2; }
+
+  function hash(s) {
+    var h1 = 0x811c9dc5, h2 = 0x9e3779b9;
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 16777619);
+      h2 = Math.imul(h2 ^ c, 0x5bd1e995); h2 ^= h2 >>> 13;
+    }
+    return (h1 >>> 0) * 2097152 + ((h2 >>> 0) & 0x1fffff);
+  }
+
+  // ---------- full solver (sees every card) ----------
+  // Returns { result: 'win' | 'lose' | 'unknown', nodes }.
+  function solve(inp, opts) {
+    opts = opts || {};
+    var maxNodes = opts.maxNodes || 1e9;
+    var deadline = opts.deadline || Infinity;
+    var cols = inp.cols.map(function (c) { return c.slice(); });
+    var down = inp.down.slice(), found = inp.found.slice();
+    var talon = inp.talon.slice(), w = inp.w, N = inp.draw;
+    var nodes = 0, aborted = false;
+    var TBITS = opts.tableBits || 22, TSIZE = 1 << TBITS, TMASK = TSIZE - 1, table = new Float64Array(TSIZE), filled = 0;
+    var tpos = new Int8Array(52).fill(-1);
+    for (var ti = 0; ti < talon.length; ti++) tpos[talon[ti]] = ti;
+    var tmask = 0;
+    for (ti = 0; ti < talon.length; ti++) tmask |= 1 << ti;
+    function fmix(h) { h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); return h ^ (h >>> 16); }
+    function stateHash() {
+      var sa = 0, sb = 0;
+      for (var i = 0; i < 7; i++) {
+        var p = cols[i], a = 0x9e3779b9 ^ down[i], b = 0x27d4eb2f + down[i] * 977;
+        for (var j = 0; j < p.length; j++) {
+          a = Math.imul(a ^ (p[j] + 1), 0x01000193);
+          b = Math.imul(b + p[j] + 7, 0xcc9e2d51); b = (b << 15) | (b >>> 17);
+        }
+        sa = (sa + fmix(a)) | 0; sb = (sb + fmix(b ^ 0x5bd1e995)) | 0;
+      }
+      var f = found[0] | (found[1] << 4) | (found[2] << 8) | (found[3] << 12) | ((N === 1 ? 0 : w + 1) << 16);
+      var A = fmix(sa ^ fmix(f) ^ Math.imul(tmask, 0x2545f491));
+      var B = fmix(sb + fmix(tmask ^ 0x68e31da4) + Math.imul(f, 0x9e3779b1));
+      return (A >>> 0) * 2097152 + ((B >>> 0) & 0x1fffff) + 1;
+    }
+    // Returns true if the position was already seen; otherwise records it.
+    function visit(h) {
+      var i = (h % TSIZE) & TMASK;
+      while (true) {
+        var v = table[i];
+        if (v === 0) { table[i] = h; filled++; return false; }
+        if (v === h) return true;
+        i = (i + 1) & TMASK;
+      }
+    }
+
+    function fits(c, d) {
+      var p = cols[d];
+      if (!p.length) return rank(c) === 12;
+      var t = p[p.length - 1];
+      return red(t) !== red(c) && rank(t) === rank(c) + 1;
+    }
+    function canF(c) { return found[suit(c)] === rank(c); }
+    function safe(c) {
+      var r = rank(c), o = OPP[suit(c)];
+      return r <= 1 || (found[o[0]] >= r && found[o[1]] >= r);
+    }
+    function flip(s) {
+      if (cols[s].length && down[s] === cols[s].length) { down[s]--; return true; }
+      return false;
+    }
+    function reach() {
+      var L = talon.length, out = [];
+      if (!L) return out;
+      var mark = new Uint8Array(L), p = w;
+      if (p >= 0) { mark[p] = 1; out.push(p); }
+      while (p < L - 1) { p = Math.min(p + N, L - 1); if (!mark[p]) { mark[p] = 1; out.push(p); } }
+      p = -1;
+      while (p < L - 1) { p = Math.min(p + N, L - 1); if (!mark[p]) { mark[p] = 1; out.push(p); } }
+      return out;
+    }
+    function key() {
+      var parts = [];
+      for (var i = 0; i < 7; i++) {
+        var s = String.fromCharCode(65 + down[i]);
+        for (var j = 0; j < cols[i].length; j++) s += String.fromCharCode(48 + cols[i][j]);
+        parts.push(s);
+      }
+      parts.sort();
+      var k = String.fromCharCode(48 + found[0], 48 + found[1], 48 + found[2], 48 + found[3]);
+      k += N === 1 ? '*' : String.fromCharCode(49 + w);
+      for (var t = 0; t < talon.length; t++) k += String.fromCharCode(48 + talon[t]);
+      return k + '|' + parts.join(',');
+    }
+
+    function doMove(m) {
+      var c;
+      switch (m.t) {
+        case 0: c = cols[m.s].pop(); found[suit(c)]++; m.f = flip(m.s); m.c = c; break;           // tableau -> foundation
+        case 1: c = talon[m.i]; talon.splice(m.i, 1); tmask ^= 1 << tpos[c]; m.ow = w; w = m.i - 1; found[suit(c)]++; m.c = c; break; // talon -> foundation
+        case 2: c = talon[m.i]; talon.splice(m.i, 1); tmask ^= 1 << tpos[c]; m.ow = w; w = m.i - 1; cols[m.d].push(c); m.c = c; break; // talon -> tableau
+        case 3: m.mv = cols[m.s].splice(m.idx); Array.prototype.push.apply(cols[m.d], m.mv); m.f = flip(m.s); break; // tableau -> tableau
+        case 4: found[m.su]--; cols[m.d].push(m.su * 13 + found[m.su]); break;                    // foundation -> tableau
+      }
+    }
+    function undoMove(m) {
+      switch (m.t) {
+        case 0: if (m.f) down[m.s]++; found[suit(m.c)]--; cols[m.s].push(m.c); break;
+        case 1: found[suit(m.c)]--; talon.splice(m.i, 0, m.c); tmask ^= 1 << tpos[m.c]; w = m.ow; break;
+        case 2: cols[m.d].pop(); talon.splice(m.i, 0, m.c); tmask ^= 1 << tpos[m.c]; w = m.ow; break;
+        case 3: if (m.f) down[m.s]++; cols[m.d].length -= m.mv.length; Array.prototype.push.apply(cols[m.s], m.mv); break;
+        case 4: cols[m.d].pop(); found[m.su]++; break;
+      }
+    }
+    // Cards that can never be needed on the table again go up automatically.
+    function autoplay() {
+      var done = [], again = true;
+      while (again) {
+        again = false;
+        for (var s = 0; s < 7; s++) {
+          var p = cols[s];
+          if (!p.length) continue;
+          var c = p[p.length - 1];
+          if (canF(c) && safe(c)) { var m = { t: 0, s: s }; doMove(m); done.push(m); again = true; }
+        }
+      }
+      return done;
+    }
+    function undoAll(list) { for (var i = list.length - 1; i >= 0; i--) undoMove(list[i]); }
+
+    // Could card x usefully take a card on top of it: a reachable stock card, or the
+    // face-up stack sitting on face-down cards in another column?
+    function accepts(x, R, skip) {
+      var i, y;
+      if (!opts.pfo) for (i = 0; i < R.length; i++) { y = talon[R[i]]; if (red(y) !== red(x) && rank(y) + 1 === rank(x)) return true; }
+      for (i = 0; i < 7; i++) {
+        if (i === skip || !down[i] || cols[i].length <= down[i]) continue;
+        y = cols[i][down[i]];
+        if (red(y) !== red(x) && rank(y) + 1 === rank(x)) return true;
+      }
+      return false;
+    }
+    function takesAnything(x, xi) {
+      var i, j, y;
+      for (i = 0; i < talon.length; i++) { if (i === xi) continue; y = talon[i]; if (red(y) !== red(x) && rank(y) + 1 === rank(x)) return true; }
+      for (i = 0; i < 7; i++) for (j = down[i]; j < cols[i].length; j++) { y = cols[i][j]; if (red(y) !== red(x) && rank(y) + 1 === rank(x)) return true; }
+      for (i = 0; i < 4; i++) { if (!found[i]) continue; y = i * 13 + found[i] - 1; if (red(y) !== red(x) && rank(y) + 1 === rank(x)) return true; }
+      return false;
+    }
+    function gen() {
+      var out = [], R = reach(), s, d, i, c, idx;
+      var firstEmpty = -1;
+      for (d = 0; d < 7; d++) if (!cols[d].length) { firstEmpty = d; break; }
+      function okDest(c, d, s) { return d !== s && (cols[d].length || d === firstEmpty) && fits(c, d); }
+
+      for (s = 0; s < 7; s++) { var p = cols[s]; if (p.length && canF(p[p.length - 1])) out.push({ t: 0, s: s }); }
+      for (i = 0; i < R.length; i++) if (canF(talon[R[i]])) out.push({ t: 1, i: R[i] });
+
+      var rev = [];
+      for (s = 0; s < 7; s++) if (down[s] > 0 && cols[s].length > down[s]) rev.push(s);
+      rev.sort(function (a, b) { return down[b] - down[a]; });
+      for (var k = 0; k < rev.length; k++) {
+        s = rev[k]; idx = down[s]; c = cols[s][idx];
+        for (d = 0; d < 7; d++) if (okDest(c, d, s)) out.push({ t: 3, s: s, idx: idx, d: d });
+      }
+      for (i = 0; i < R.length; i++) {
+        c = talon[R[i]];
+        // With Draw 1 every stock card stays within reach, so putting one on the table
+        // can wait until something is ready to go on top of it.
+        if (N === 1 && !takesAnything(c, R[i])) continue;
+        for (d = 0; d < 7; d++) if (okDest(c, d, -1)) out.push({ t: 2, i: R[i], d: d });
+      }
+      // Emptying a column only helps if a king is waiting for it.
+      var kings = 0, empties = 0;
+      for (s = 0; s < 7; s++) {
+        if (!cols[s].length) empties++;
+        else if (down[s] && rank(cols[s][down[s]]) === 12) kings++;
+      }
+      for (i = 0; i < R.length; i++) if (rank(talon[R[i]]) === 12) kings++;
+      for (s = 0; kings > empties && s < 7; s++) {
+        if (down[s] || !cols[s].length || rank(cols[s][0]) === 12) continue;
+        c = cols[s][0];
+        for (d = 0; d < 7; d++) if (d !== s && cols[d].length && fits(c, d)) out.push({ t: 3, s: s, idx: 0, d: d });
+      }
+      for (s = 0; s < 7; s++) {
+        var q = cols[s];
+        for (idx = down[s] + 1; idx < q.length; idx++) {
+          c = q[idx]; var ex = q[idx - 1], useful = canF(ex) || accepts(ex, R, s);
+          if (!useful) continue;
+          for (d = 0; d < 7; d++) if (okDest(c, d, s)) out.push({ t: 3, s: s, idx: idx, d: d });
+        }
+      }
+      for (var su = 0; su < 4; su++) {
+        var r = found[su] - 1;
+        if (r < 1) continue;
+        var op = OPP[su];
+        if (found[op[0]] >= r && found[op[1]] >= r) continue;
+        c = su * 13 + r;
+        if (!accepts(c, R, -1)) continue;
+        for (d = 0; d < 7; d++) if (cols[d].length && fits(c, d)) out.push({ t: 4, su: su, d: d });
+      }
+      return out;
+    }
+
+    // Dead-end check. dep[i][j] means "the cards from position j up in column i could
+    // all leave that column", worked out optimistically (ignoring how moves interfere
+    // with each other). If even that says some column can never be cleared, the
+    // position is lost. A card leaves by moving onto a card that can be uncovered,
+    // by going to a foundation once it is on top and its lower cards can be reached,
+    // or, for a king, by moving to an empty column.
+    var colOf = new Int8Array(52), idxOf = new Int8Array(52);
+    var dep = []; for (var di = 0; di < 7; di++) dep.push(new Uint8Array(20));
+    function reachable(x) {
+      if (found[suit(x)] > rank(x)) return true;
+      var k = colOf[x];
+      if (k < 0) return true;
+      return dep[k][idxOf[x]] === 1 || dep[k][idxOf[x] + 1] === 1;
+    }
+    function parentOk(c) {
+      var r = rank(c);
+      if (r === 12) return true;
+      var o = OPP[suit(c)];
+      return reachable(o[0] * 13 + r + 1) || reachable(o[1] * 13 + r + 1);
+    }
+    function lowerOk(c) {
+      var su = suit(c), r = rank(c);
+      for (var k = found[su]; k < r; k++) if (!reachable(su * 13 + k)) return false;
+      return true;
+    }
+    function frozen() {
+      var i, j, p;
+      colOf.fill(-1);
+      for (i = 0; i < 7; i++) {
+        p = cols[i]; dep[i].fill(0); dep[i][p.length] = 1;
+        for (j = 0; j < p.length; j++) { colOf[p[j]] = i; idxOf[p[j]] = j; }
+      }
+      var changed = true;
+      while (changed) {
+        changed = false;
+        for (i = 0; i < 7; i++) {
+          p = cols[i]; var D = dep[i];
+          for (j = p.length - 1; j >= 0; j--) {
+            if (D[j]) continue;
+            var c = p[j], pa = parentOk(c);
+            if ((j >= down[i] && pa) || (D[j + 1] && (pa || lowerOk(c)))) { D[j] = 1; changed = true; }
+          }
+        }
+      }
+      for (i = 0; i < 7; i++) if (!dep[i][0]) return true;
+      return false;
+    }
+    function score() {
+      var sc = (found[0] + found[1] + found[2] + found[3]) * 2 - talon.length;
+      for (var i = 0; i < 7; i++) { sc -= down[i] * (opts.dw || 5); if (!cols[i].length) sc += 1; }
+      return sc;
+    }
+    function won() {
+      if (found[0] + found[1] + found[2] + found[3] === 52) return true;
+      for (var i = 0; i < 7; i++) if (down[i]) return false;
+      // Everything on the table is face up. With the whole stock reachable the lowest
+      // card left can always go up, so the game is won.
+      return talon.length === 0 || N === 1;
+    }
+
+    function dfs() {
+      if (won()) return true;
+      if (visit(stateHash())) return false;
+      nodes++;
+      if (nodes > maxNodes || filled > TSIZE * 0.7 || ((nodes & 2047) === 0 && Date.now() > deadline)) { aborted = true; return false; }
+      var moves = gen();
+      if (opts.sort && moves.length > 1) {
+        for (var q = 0; q < moves.length; q++) {
+          var mm = moves[q]; doMove(mm); var au = autoplay();
+          mm.sc = score() * 64 - q; undoAll(au); undoMove(mm);
+          if (mm.t === 1 || mm.t === 2) mm.ow = undefined;
+        }
+        moves.sort(function (a, b) { return b.sc - a.sc; });
+      }
+      for (var i = 0; i < moves.length; i++) {
+        var m = moves[i];
+        doMove(m);
+        var autos = autoplay();
+        var r = dfs();
+        if (r && path) { for (var a = autos.length - 1; a >= 0; a--) path.push(autos[a]); path.push(m); }
+        undoAll(autos);
+        undoMove(m);
+        if (r) return true;
+        if (aborted) return false;
+      }
+      return false;
+    }
+
+    var path = opts.trace ? [] : null;
+    var first = autoplay();
+    if (frozen()) return { result: 'lose', nodes: 0 };
+    var ok = dfs();
+    var out = { result: ok ? 'win' : aborted ? 'unknown' : 'lose', nodes: nodes };
+    if (ok && path) out.path = first.concat(path.reverse());
+    return out;
+  }
+
+  // ---------- stuck detector (uses only what the player can see) ----------
+  // True when some sequence of legal moves gets more cards onto the foundations,
+  // turns over a face-down card, or plays a card out of the stock. Moving cards back
+  // and forth and cycling the stock don't count. Face-down cards are never looked at:
+  // turning one over ends the search.
+  function hasUsefulMove(inp, limit) {
+    limit = limit || 30000;
+    var N = inp.draw;
+    function pot(s) { return s.found[0] + s.found[1] + s.found[2] + s.found[3] - s.talon.length; }
+    function key(s) {
+      var k = s.found.join('.') + ':' + s.w + ':';
+      for (var i = 0; i < 7; i++) k += s.down[i] + '/' + s.cols[i].join(',') + ';';
+      return k;
+    }
+    function clone(s) {
+      return { cols: s.cols.map(function (c) { return c.slice(); }), down: s.down.slice(), found: s.found.slice(), talon: s.talon, w: s.w };
+    }
+    function fits(s, c, d) {
+      var p = s.cols[d];
+      if (!p.length) return rank(c) === 12;
+      var t = p[p.length - 1];
+      return red(t) !== red(c) && rank(t) === rank(c) + 1;
+    }
+    var start = clone(inp); start.talon = inp.talon.slice();
+    var P0 = pot(start), seen = new Set([key(start)]), queue = [start], head = 0;
+
+    while (head < queue.length) {
+      if (seen.size > limit) return true;
+      var s = queue[head++], next = [], d, c, i;
+      var L = s.talon.length;
+      if (s.w >= 0) {
+        c = s.talon[s.w];
+        if (s.found[suit(c)] === rank(c)) return true;
+        for (d = 0; d < 7; d++) if (fits(s, c, d)) return true;
+      }
+      if (L) { var n = clone(s); n.w = s.w < L - 1 ? Math.min(s.w + N, L - 1) : -1; next.push(n); }
+      for (var src = 0; src < 7; src++) {
+        var p = s.cols[src];
+        if (!p.length) continue;
+        c = p[p.length - 1];
+        if (s.found[suit(c)] === rank(c)) {
+          var nf = clone(s); nf.cols[src].pop(); nf.found[suit(c)]++;
+          if (nf.cols[src].length && nf.down[src] === nf.cols[src].length) return true;
+          if (pot(nf) > P0) return true;
+          next.push(nf);
+        }
+        for (var idx = s.down[src]; idx < p.length; idx++) {
+          c = p[idx];
+          for (d = 0; d < 7; d++) {
+            if (d === src || !fits(s, c, d)) continue;
+            if (idx === 0 && !s.cols[d].length) continue;
+            if (idx === s.down[src] && s.down[src] > 0) return true;
+            var nt = clone(s); var mv = nt.cols[src].splice(idx); Array.prototype.push.apply(nt.cols[d], mv);
+            next.push(nt);
+          }
+        }
+      }
+      for (var su = 0; su < 4; su++) {
+        if (!s.found[su]) continue;
+        c = su * 13 + s.found[su] - 1;
+        for (d = 0; d < 7; d++) {
+          if (!fits(s, c, d)) continue;
+          var nb = clone(s); nb.found[su]--; nb.cols[d].push(c); next.push(nb);
+        }
+      }
+      for (i = 0; i < next.length; i++) {
+        var k = key(next[i]);
+        if (!seen.has(k)) { seen.add(k); queue.push(next[i]); }
+      }
+    }
+    return false;
+  }
+
+  // ---------- turning point (for reviewing a finished game) ----------
+  // positions[i] is the position after the player's i-th move (positions[0] is the deal).
+  // Finds the last position from which the deal could still be won, seeing every card.
+  // Each position follows from the one before by a legal move, so once a position is
+  // lost every later one is too. That makes a binary search work: about log2(n) solves.
+  // Returns { k, lost, exact, path, tried }:
+  //   k     last position proven winnable (-1 if none), with path = a winning line from it
+  //   lost  first position proven lost (positions.length if none)
+  //   exact true when lost === k + 1, so the move from k to k+1 is the one that lost it
+  function turningPoint(positions, opts) {
+    opts = opts || {};
+    var n = positions.length - 1, end = Date.now() + (opts.ms || 60000);
+    var per = opts.perMs || 20000, bits = opts.tableBits || 21;
+    var status = {}, paths = {}, tried = 0, i;
+    if (opts.known) for (i in opts.known) status[i] = opts.known[i];
+    function check(i, force) {
+      if (status[i] && !(force && status[i] === 'win' && !paths[i])) return status[i];
+      var left = end - Date.now();
+      if (left <= 0 && !force) return 'unknown';
+      var r = { result: 'unknown' };
+      for (var b = bits; b >= 17; b -= 2) {
+        try {
+          r = solve(positions[i], { trace: true, tableBits: b, maxNodes: Math.floor((1 << b) * 0.68), deadline: Date.now() + Math.max(2000, Math.min(per, left)) });
+          break;
+        } catch (e) { r = { result: 'unknown' }; }
+      }
+      tried++;
+      if (r.result !== 'unknown' || !status[i]) status[i] = r.result;
+      if (r.path) paths[i] = r.path;
+      if (opts.progress) opts.progress({ tried: tried, index: i, result: r.result });
+      return status[i];
+    }
+    var lo = -1, hi = n + 1;
+    function settle(i) { var r = check(i); if (r === 'win' && i > lo) lo = i; else if (r === 'lose' && i < hi) hi = i; }
+    for (i in status) { if (status[i] === 'win' && +i > lo) lo = +i; if (status[i] === 'lose' && +i < hi) hi = +i; }
+    // Most positions settle in well under a second. A first pass gives each a short
+    // time; a second pass spends longer only on the ones still in the way.
+    var full = per;
+    for (var pass = 0; pass < 2 && hi - lo > 1; pass++) {
+      per = pass ? full : Math.min(full, opts.quickMs || 3000);
+      if (pass) for (i in status) if (status[i] === 'unknown' && +i >= lo && +i <= hi) delete status[i];
+      // The end of the game first: if it can still be won, nothing has gone wrong yet.
+      if (hi > n && !status[n]) settle(n);
+      if (lo < 0 && hi > 0 && !status[0]) settle(0);
+      while (hi - lo > 1 && Date.now() < end) {
+        // Middle of the open range; skip positions the solver couldn't settle, leaning
+        // later (later positions have fewer cards in play and solve faster).
+        var ideal = (lo + hi) / 2, best = -1, bd = Infinity;
+        for (i = Math.max(0, lo + 1); i < Math.min(hi, n + 1); i++) {
+          if (status[i]) continue;
+          var d = Math.abs(i - ideal) - (i > ideal ? 0.25 : 0);
+          if (d < bd) { bd = d; best = i; }
+        }
+        if (best < 0) break;
+        settle(best);
+      }
+    }
+    per = full;
+    // A winnable start known from an earlier check has no line yet: solve it once more.
+    if (lo >= 0 && !paths[lo]) { check(lo, true); if (!paths[lo]) lo = -1; }
+    return { k: lo, lost: hi, exact: lo >= 0 && hi === lo + 1, path: lo >= 0 ? paths[lo] : null, tried: tried };
+  }
+
+  // ---------- plain strategy (for Easy deals) ----------
+  // Plays a deal the way a sensible player does, deciding only from cards that are face
+  // up: play to the foundations, uncover face-down cards, play from the waste, put kings
+  // in empty columns, otherwise turn the stock. Returns true if that wins. A deal this
+  // passes can be won without any lucky guesses.
+  // variant 1 breaks ties the other way (other columns first, fewest face-down first),
+  // standing in for a player who makes different but equally sensible choices.
+  function playsOut(inp, variant) {
+    var V = variant ? [6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6];
+    var cols = inp.cols.map(function (c) { return c.slice(); }), down = inp.down.slice(), found = inp.found.slice();
+    var talon = inp.talon.slice(), w = inp.w, N = inp.draw;
+    function top(s) { return cols[s][cols[s].length - 1]; }
+    function fits(c, d) {
+      var p = cols[d];
+      if (!p.length) return rank(c) === 12;
+      var t = p[p.length - 1];
+      return red(t) !== red(c) && rank(t) === rank(c) + 1;
+    }
+    function canF(c) { return found[suit(c)] === rank(c); }
+    function safeUp(c) {
+      var r = rank(c), o = OPP[suit(c)];
+      return r <= 1 || (found[o[0]] >= r - 1 && found[o[1]] >= r - 1);
+    }
+    function flip(s) { if (cols[s].length && down[s] === cols[s].length) down[s]--; }
+    function toF(s) { found[suit(cols[s].pop())]++; flip(s); }
+    function move(s, idx, d) { Array.prototype.push.apply(cols[d], cols[s].splice(idx)); flip(s); }
+    function wasteTo(d) { var c = talon.splice(w, 1)[0]; w--; if (d < 0) found[suit(c)]++; else cols[d].push(c); }
+    function step() {
+      var s, d, c, idx;
+      // 1. Cards that can go up with no downside, or that turn over a card when they do.
+      for (s = 0; s < 7; s++) if (cols[s].length && canF(top(s)) && (safeUp(top(s)) || down[s] === cols[s].length - 1)) { toF(s); return true; }
+      if (w >= 0 && canF(talon[w]) && safeUp(talon[w])) { wasteTo(-1); return true; }
+      // 2. Move a face-up run to uncover a face-down card, most face-down cards first.
+      var order = V.slice().sort(function (a, b) { return variant ? down[a] - down[b] : down[b] - down[a]; }), j;
+      for (var k = 0; k < 7; k++) {
+        s = order[k]; idx = down[s];
+        if (!down[s] || idx >= cols[s].length) continue;
+        c = cols[s][idx];
+        for (j = 0; j < 7; j++) { d = V[j]; if (d !== s && cols[d].length && fits(c, d)) { move(s, idx, d); return true; } }
+        if (rank(c) === 12) for (j = 0; j < 7; j++) { d = V[j]; if (!cols[d].length) { move(s, idx, d); return true; } }
+      }
+      // 3. Play the waste card: up, onto the table, or a king into an empty column.
+      if (w >= 0) {
+        c = talon[w];
+        if (canF(c)) { wasteTo(-1); return true; }
+        for (j = 0; j < 7; j++) { d = V[j]; if (cols[d].length && fits(c, d)) { wasteTo(d); return true; } }
+        if (rank(c) === 12) for (d = 0; d < 7; d++) if (!cols[d].length) { wasteTo(d); return true; }
+      }
+      // 4. Any other card that can go up.
+      for (s = 0; s < 7; s++) if (cols[s].length && canF(top(s))) { toF(s); return true; }
+      // 5. Shift part of a run so the card under it can go up.
+      for (s = 0; s < 7; s++) for (idx = down[s] + 1; idx < cols[s].length; idx++) {
+        if (!canF(cols[s][idx - 1])) continue;
+        for (d = 0; d < 7; d++) if (d !== s && cols[d].length && fits(cols[s][idx], d)) { move(s, idx, d); return true; }
+      }
+      return false;
+    }
+    var idle = 0;
+    for (var guard = 0; guard < 5000; guard++) {
+      if (found[0] + found[1] + found[2] + found[3] === 52) return true;
+      if (step()) { idle = 0; continue; }
+      // Nothing to play: turn the stock. A whole pass with nothing played means stuck.
+      var L = talon.length;
+      if (!L || ++idle > Math.ceil(L / N) + 2) return false;
+      w = w < L - 1 ? Math.min(w + N, L - 1) : -1;
+    }
+    return false;
+  }
+
+  return { solve: solve, hasUsefulMove: hasUsefulMove, turningPoint: turningPoint, playsOut: playsOut };
+})();
+
+if (typeof module !== 'undefined') module.exports = KL;
+
+// Game review: replays a logged game, turns solver lines into game moves, and
+// describes moves in plain words. Works on the game's own state format (card ids like
+// "H7", piles stock/waste/f/t, an `up` map), so it runs in the page and in Node tests.
+//
+// A logged action is either { d: 1 } (tap the stock: draw, or turn the waste over)
+// or { f: ref, i: index, t: ref } (move the cards from `index` up in pile `f` to pile `t`),
+// where a ref is { k: 's' | 'w' | 'f' | 't', i: pile number }.
+
+var RV = (function () {
+  var SUITS = ['S', 'H', 'D', 'C'];
+  var SYM = { S: '♠︎', H: '♥︎', D: '♦︎', C: '♣︎' };
+  var RANKS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+  function info(id) { return { suit: id[0], rank: +id.slice(1) }; }
+  function isRed(s) { return s === 'H' || s === 'D'; }
+  function last(a) { return a[a.length - 1]; }
+  function name(id) { var c = info(id); return RANKS[c.rank] + SYM[c.suit]; }
+  function clone(g) { return JSON.parse(JSON.stringify(g)); }
+
+  function rng(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function deal(seed, draw) {
+    var r = rng(seed), deck = [], i, s, k;
+    for (s = 0; s < 4; s++) for (k = 1; k <= 13; k++) deck.push(SUITS[s] + k);
+    for (i = deck.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), x = deck[i]; deck[i] = deck[j]; deck[j] = x; }
+    var g = { seed: seed, draw: draw, stock: [], waste: [], f: [[], [], [], []], t: [[], [], [], [], [], [], []], up: {}, moves: 0, elapsed: 0, started: false, won: false, log: [] };
+    for (var r2 = 0; r2 < 7; r2++) for (var c = r2; c < 7; c++) g.t[c].push(deck.pop());
+    g.t.forEach(function (col) { g.up[last(col)] = true; });
+    g.stock = deck;
+    return g;
+  }
+
+  // Game state -> the solver's position format (see solver.js).
+  function cardNum(id) { return SUITS.indexOf(id[0]) * 13 + (+id.slice(1)) - 1; }
+  function idOf(c) { return SUITS[(c / 13) | 0] + (c % 13 + 1); }
+  function toPos(g) {
+    var found = [0, 0, 0, 0];
+    g.f.forEach(function (p) { if (p.length) found[SUITS.indexOf(p[0][0])] = p.length; });
+    return {
+      cols: g.t.map(function (c) { return c.map(cardNum); }),
+      down: g.t.map(function (c) { return c.filter(function (id) { return !g.up[id]; }).length; }),
+      found: found,
+      talon: g.waste.concat(g.stock.slice().reverse()).map(cardNum),
+      w: g.waste.length - 1,
+      draw: g.draw
+    };
+  }
+
+  function pile(g, ref) { return ref.k === 's' ? g.stock : ref.k === 'w' ? g.waste : ref.k === 'f' ? g.f[ref.i] : g.t[ref.i]; }
+  function canFound(g, id, fi) {
+    var p = g.f[fi], c = info(id);
+    if (!p.length) return c.rank === 1;
+    var top = info(last(p));
+    return top.suit === c.suit && c.rank === top.rank + 1;
+  }
+  function canTab(g, id, ti) {
+    var col = g.t[ti], c = info(id);
+    if (!col.length) return c.rank === 13;
+    var topId = last(col);
+    if (!g.up[topId]) return false;
+    var top = info(topId);
+    return isRed(top.suit) !== isRed(c.suit) && c.rank === top.rank - 1;
+  }
+  // Which foundation pile a card goes to: the one already holding its suit, else the
+  // first empty one (the same pile a tap would pick).
+  // Safe to put up: nothing could ever need to go on top of it again (an ace or two,
+  // or both foundations of the other colour already hold the card one lower).
+  function safe(g, id) {
+    var c = info(id); if (c.rank <= 2) return true;
+    var other = isRed(c.suit) ? ['S', 'C'] : ['H', 'D'], ok = 0;
+    g.f.forEach(function (p) { if (p.length && other.indexOf(p[0][0]) >= 0 && p.length >= c.rank - 1) ok++; });
+    return ok === 2;
+  }
+  function foundFor(g, id) { for (var f = 0; f < 4; f++) if (canFound(g, id, f)) return f; return -1; }
+
+  function legal(g, a) {
+    if (a.d) return g.stock.length > 0 || g.waste.length > 0;
+    var from = pile(g, a.f);
+    if (!from || a.i < 0 || a.i >= from.length) return false;
+    var id = from[a.i];
+    if (!g.up[id]) return false;
+    if ((a.f.k === 'w' || a.f.k === 'f' || a.t.k === 'f') && a.i !== from.length - 1) return false;
+    if (a.f.k === 's' || a.t.k === 's' || a.t.k === 'w') return false;
+    if (a.f.k === a.t.k && a.f.i === a.t.i) return false;
+    return a.t.k === 'f' ? canFound(g, id, a.t.i) : canTab(g, id, a.t.i);
+  }
+  // Applies an action in place, exactly as the game does. Returns what changed.
+  function apply(g, a) {
+    if (a.d) {
+      if (g.stock.length) {
+        var n = Math.min(g.draw, g.stock.length), moved = [];
+        for (var i = 0; i < n; i++) { var id = g.stock.pop(); g.up[id] = true; g.waste.push(id); moved.push(id); }
+        g.moves++;
+        return { ids: moved };
+      }
+      g.stock = g.waste.reverse(); g.waste = [];
+      g.stock.forEach(function (id) { g.up[id] = false; });
+      g.moves++;
+      return { ids: [], recycled: true };
+    }
+    var from = pile(g, a.f), to = pile(g, a.t), ids = from.splice(a.i), flipped = null;
+    Array.prototype.push.apply(to, ids);
+    if (a.f.k === 't' && from.length && !g.up[last(from)]) { flipped = last(from); g.up[flipped] = true; }
+    g.moves++;
+    return { ids: ids, flipped: flipped };
+  }
+
+  // Replays a game's log from its deal. Returns every state along the way
+  // (states[i] is the table after i actions), or null if the log doesn't fit the deal.
+  function replay(seed, draw, log) {
+    var g = deal(seed, draw), states = [strip(g)];
+    for (var i = 0; i < log.length; i++) {
+      if (!legal(g, log[i])) return null;
+      apply(g, log[i]);
+      states.push(strip(g));
+    }
+    return states;
+  }
+  function strip(g) { return clone({ seed: g.seed, draw: g.draw, stock: g.stock, waste: g.waste, f: g.f, t: g.t, up: g.up }); }
+  function sameTable(a, b) {
+    var k = function (g) {
+      var up = Object.keys(g.up).filter(function (id) { return g.up[id]; }).sort();
+      return JSON.stringify([g.stock, g.waste, g.f, g.t, up]);
+    };
+    return k(a) === k(b);
+  }
+
+  // Turns a solver line (from KL.solve with trace) into steps of game actions. Each step
+  // is the stock taps needed to bring a card up (if any) plus one move. When the solver
+  // stops because the rest is a formality, a last step plays everything up.
+  // Returns { steps: [{ acts, before }], states } or null if anything doesn't fit.
+  function lineFrom(start, path) {
+    var g = clone(start), steps = [], states = [strip(g)];
+    function push(acts) {
+      var before = strip(g);
+      for (var i = 0; i < acts.length; i++) { if (!legal(g, acts[i])) return false; apply(g, acts[i]); }
+      steps.push({ acts: acts, before: before, taps: acts.length - 1, ups: 0 });
+      states.push(strip(g));
+      return true;
+    }
+    function bringUp(id, acts) {
+      var guard = 0, L = g.stock.length + g.waste.length;
+      var h = clone(g);
+      while (last(h.waste) !== id && guard++ < 2 * L + 4) { apply(h, { d: 1 }); acts.push({ d: 1 }); }
+      return last(h.waste) === id;
+    }
+    for (var s = 0; s < path.length; s++) {
+      var m = path[s], acts = [], id;
+      if (m.t === 0) {
+        id = last(g.t[m.s]);
+        var up = { f: { k: 't', i: m.s }, i: g.t[m.s].length - 1, t: { k: 'f', i: foundFor(g, id) } };
+        // A card that can go up with no possible downside rides along with the move
+        // before it ("…then 2♣ goes up"), so the line has fewer steps to click through.
+        var prev = steps[steps.length - 1];
+        if (prev && safe(g, id) && legal(g, up)) {
+          apply(g, up); prev.acts.push(up); prev.ups++;
+          states[states.length - 1] = strip(g);
+          continue;
+        }
+        acts.push(up);
+      } else if (m.t === 1 || m.t === 2) {
+        id = idOf(m.c);
+        if (!bringUp(id, acts)) return null;
+        var h = clone(g); for (var q = 0; q < acts.length; q++) apply(h, acts[q]);
+        acts.push({ f: { k: 'w' }, i: h.waste.length - 1, t: m.t === 1 ? { k: 'f', i: foundFor(h, id) } : { k: 't', i: m.d } });
+      } else if (m.t === 3) {
+        acts.push({ f: { k: 't', i: m.s }, i: m.idx, t: { k: 't', i: m.d } });
+      } else if (m.t === 4) {
+        var fi = -1;
+        for (var f = 0; f < 4; f++) if (g.f[f].length && g.f[f][0][0] === SUITS[m.su]) fi = f;
+        if (fi < 0) return null;
+        acts.push({ f: { k: 'f', i: fi }, i: g.f[fi].length - 1, t: { k: 't', i: m.d } });
+      }
+      if (!push(acts)) return null;
+    }
+    // Everything left is face up: play the lowest card that can go up, turning the
+    // stock when nothing on the table can.
+    var fin = [], before = strip(g), total = function () { return g.f.reduce(function (a, p) { return a + p.length; }, 0); };
+    for (var guard = 0; guard < 3000 && total() < 52; guard++) {
+      var best = null;
+      g.t.forEach(function (col, c) {
+        if (!col.length) return;
+        var x = last(col), fi = foundFor(g, x);
+        if (fi >= 0 && (!best || info(x).rank < info(last(pile(g, best.f))).rank)) best = { f: { k: 't', i: c }, i: col.length - 1, t: { k: 'f', i: fi } };
+      });
+      if (!best && g.waste.length) { var w = last(g.waste), wf = foundFor(g, w); if (wf >= 0) best = { f: { k: 'w' }, i: g.waste.length - 1, t: { k: 'f', i: wf } }; }
+      if (!best) { if (!g.stock.length && !g.waste.length) return null; best = { d: 1 }; }
+      apply(g, best); fin.push(best);
+    }
+    if (total() < 52) return null;
+    if (fin.length) { steps.push({ acts: fin, before: before, finish: true }); states.push(strip(g)); }
+    return { steps: steps, states: states };
+  }
+
+  // ---------- words ----------
+  function where(ref) { return ref.k === 'w' ? 'the waste' : ref.k === 'f' ? 'the foundation' : 'column ' + (ref.i + 1); }
+  // Describes a move (not a stock tap) about to be made from state g.
+  function moveText(g, a) {
+    var from = pile(g, a.f), ids = from.slice(a.i), id = ids[0], extra = ids.length - 1;
+    var what = name(id) + (extra ? ' (and the ' + (extra === 1 ? 'card' : extra + ' cards') + ' on it)' : '');
+    var src = a.f.k === 'w' ? ' from the waste' : a.f.k === 'f' ? ' back down from the foundation' : ' from column ' + (a.f.i + 1);
+    var dst;
+    if (a.t.k === 'f') dst = ' up to the foundation';
+    else if (!g.t[a.t.i].length) dst = ' to the empty column ' + (a.t.i + 1);
+    else dst = ' onto ' + name(last(g.t[a.t.i])) + ' in column ' + (a.t.i + 1);
+    return 'Move ' + what + src + dst;
+  }
+  function tapText(g) {
+    if (!g.stock.length) return 'Turn the waste back over to make a new stock';
+    var n = Math.min(g.draw, g.stock.length);
+    return g.draw === 1 ? 'Draw a card from the stock' : n === 3 ? 'Draw 3 from the stock' : 'Draw the last ' + (n === 1 ? 'card' : n + ' cards') + ' from the stock';
+  }
+  function actText(g, a) { return a.d ? tapText(g) : moveText(g, a); }
+  // A step of the winning line: stock taps, a move, then any cards that go up after it.
+  function stepText(step) {
+    if (step.finish) return 'Everything is face up now. Play the rest up to the foundations';
+    var acts = step.acts, taps = step.taps, mv = acts[taps];
+    var h = clone(step.before);
+    for (var i = 0; i < taps; i++) apply(h, acts[i]);
+    var t = moveText(h, mv);
+    if (taps) t = 'Tap the stock ' + (taps === 1 ? 'once' : taps + ' times') + ' to bring up ' + name(last(h.waste)) + ', then m' + t.slice(1).replace(' from the waste', '');
+    if (step.ups) {
+      var names = [], g3 = clone(h); apply(g3, mv);
+      for (var u = taps + 1; u < acts.length; u++) { names.push(name(last(pile(g3, acts[u].f)))); apply(g3, acts[u]); }
+      t += names.length > 4 ? '. Then ' + names.length + ' more cards go up to the foundations'
+        : '. Then ' + list(names) + (names.length === 1 ? ' goes' : ' go') + ' up to the foundation';
+    }
+    return t;
+  }
+  function list(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+  // The cards an action moves, for highlighting. For stock taps: the card it brings up.
+  function cardsOf(g, a) {
+    if (a.d) return [];
+    return pile(g, a.f).slice(a.i);
+  }
+
+  return { deal: deal, toPos: toPos, apply: apply, legal: legal, replay: replay, lineFrom: lineFrom, sameTable: sameTable,
+    actText: actText, stepText: stepText, cardsOf: cardsOf, name: name, pile: pile, clone: clone };
+})();
+
+if (typeof module !== 'undefined') module.exports = RV;
+</script>
+<script>
+(() => {
+const SUITS = ['S','H','D','C'];
+const SYM = {S:'♠︎', H:'♥︎', D:'♦︎', C:'♣︎'};
+const SUIT_NAME = {S:'spades', H:'hearts', D:'diamonds', C:'clubs'};
+const RANKS = ['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const RANK_NAME = ['','Ace','2','3','4','5','6','7','8','9','10','Jack','Queen','King'];
+const KEY = 'klondike-v1', STATS_KEY = 'klondike-stats-v1', VERDICT_KEY = 'klondike-verdicts-v1', LEVEL_KEY = 'klondike-level-v1';
+const LEVELS = {
+  easy: {name: 'Easy', note: 'Deals that straightforward play wins. No lucky guesses needed.'},
+  normal: {name: 'Normal', note: 'Every deal can be won, though some need sharp play.'},
+  hard: {name: 'Hard', note: 'Fully random deals. Some can\u2019t be won at all.'}
+};
+let level = 'normal';
+try{ const l = localStorage.getItem(LEVEL_KEY); if(LEVELS[l]) level = l; }catch(e){}
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const $ = id => document.getElementById(id);
+const board = $('board');
+const info = id => ({suit: id[0], rank: +id.slice(1)});
+const isRed = s => s === 'H' || s === 'D';
+const last = a => a[a.length - 1];
+
+let S = null, history = [], G = null, busy = false, auto = false, P = null, R = null;
+const els = {};
+const slots = {};
+let stats = {played: 0, won: 0, by: {}};
+let verdicts = {};
+
+/* ---------- storage ---------- */
+// While reviewing, S is the position on show; the real game waits in R.real.
+const live = () => R ? R.real : S;
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(live())); }catch(e){} }
+function saveStats(){ try{ localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }catch(e){} }
+function saveVerdicts(){
+  const keys = Object.keys(verdicts);
+  if(keys.length > 300) keys.slice(0, keys.length - 300).forEach(k => delete verdicts[k]);
+  try{ localStorage.setItem(VERDICT_KEY, JSON.stringify(verdicts)); }catch(e){}
+}
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(STATS_KEY)); if(s) stats = {by: {}, ...s}; }catch(e){}
+  try{ const v = JSON.parse(localStorage.getItem(VERDICT_KEY)); if(v) verdicts = v; }catch(e){}
+  try{ const g = JSON.parse(localStorage.getItem(KEY)); if(g && g.t && g.t.length === 7) return g; }catch(e){}
+  return null;
+}
+
+/* ---------- dealing ---------- */
+// The deal and the solver's position format live in review.js (RV) so tests share them.
+// g.log records every action, so a finished game can be replayed and reviewed.
+const deal = (seed, draw) => RV.deal(seed, draw);
+
+/* ---------- solver bridge ---------- */
+const toPos = g => RV.toPos(g);
+const dealKey = g => g.seed + ':' + g.draw;
+let worker = null, workerUrl = null;
+const WORKER_GLUE = `
+self.onmessage = function (e) {
+  var d = e.data, bits = d.tableBits, r;
+  if (d.type === 'review') {
+    var tp = KL.turningPoint(d.positions, { ms: d.ms, perMs: d.perMs, quickMs: d.quickMs, tableBits: d.tableBits, known: d.known,
+      progress: function (p) { self.postMessage({ type: 'progress', tried: p.tried }); } });
+    self.postMessage({ type: 'done', tp: tp });
+    return;
+  }
+  for (;;) {
+    try { r = KL.solve(d.pos, { maxNodes: Math.floor((1 << bits) * 0.68), tableBits: bits, deadline: Date.now() + d.ms }); break; }
+    catch (err) { if (bits <= 18) { r = { result: 'unknown', nodes: 0 }; break; } bits -= 2; }
+  }
+  self.postMessage({ key: d.key, result: r.result, nodes: r.nodes });
+};`;
+function stopSolver(){ if(worker){ worker.terminate(); worker = null; } }
+function requestVerdict(){
+  const k = dealKey(S);
+  if(verdicts[k]) return;
+  stopSolver();
+  const pos = toPos(deal(S.seed, S.draw));
+  try{
+    if(!workerUrl) workerUrl = URL.createObjectURL(new Blob([$('klsrc').textContent + WORKER_GLUE], {type: 'text/javascript'}));
+    worker = new Worker(workerUrl);
+    worker.onmessage = e => { worker = null; finishVerdict(e.data.key, e.data.result); };
+    worker.onerror = ev => { ev.preventDefault && ev.preventDefault(); worker = null; solveHere(pos, k); };
+    worker.postMessage({key: k, pos, tableBits: 23, ms: 240000});
+  }catch(e){ solveHere(pos, k); }
+}
+// Fallback when background workers aren't available: a short check on the main thread.
+function solveHere(pos, k){
+  setTimeout(() => {
+    let r = 'unknown';
+    try{ r = KL.solve(pos, {maxNodes: 150000, tableBits: 19, deadline: Date.now() + 2500}).result; }catch(e){}
+    finishVerdict(k, r);
+  }, 800);
+}
+function finishVerdict(k, result){
+  verdicts[k] = result; saveVerdicts();
+  if(S && dealKey(S) === k && !$('stuck').hidden) showVerdict();
+}
+
+/* ---------- rules ---------- */
+function getPile(ref){ return ref.k === 's' ? S.stock : ref.k === 'w' ? S.waste : ref.k === 'f' ? S.f[ref.i] : S.t[ref.i]; }
+function locate(id){
+  let i;
+  if((i = S.stock.indexOf(id)) > -1) return {ref:{k:'s'}, index:i};
+  if((i = S.waste.indexOf(id)) > -1) return {ref:{k:'w'}, index:i};
+  for(let f = 0; f < 4; f++) if((i = S.f[f].indexOf(id)) > -1) return {ref:{k:'f', i:f}, index:i};
+  for(let c = 0; c < 7; c++) if((i = S.t[c].indexOf(id)) > -1) return {ref:{k:'t', i:c}, index:i};
+  return null;
+}
+function canFound(id, fi){
+  const pile = S.f[fi], c = info(id);
+  if(!pile.length) return c.rank === 1;
+  const top = info(last(pile));
+  return top.suit === c.suit && c.rank === top.rank + 1;
+}
+function canTab(id, ti){
+  const col = S.t[ti], c = info(id);
+  if(!col.length) return c.rank === 13;
+  const topId = last(col);
+  if(!S.up[topId]) return false;
+  const top = info(topId);
+  return isRed(top.suit) !== isRed(c.suit) && c.rank === top.rank - 1;
+}
+const sameRef = (a, b) => a.k === b.k && a.i === b.i;
+
+/* ---------- history ---------- */
+function snap(){ return JSON.stringify({stock:S.stock, waste:S.waste, f:S.f, t:S.t, up:S.up, moves:S.moves, n: S.log ? S.log.length : null}); }
+function pushHistory(){ history.push(snap()); if(history.length > 400) history.shift(); }
+function undo(){
+  if(busy || R || !history.length) return;
+  const prev = JSON.parse(history.pop()), n = prev.n;
+  delete prev.n;
+  Object.assign(S, prev);
+  if(S.log && n != null) S.log.length = n;
+  S.moves++; S.dismissed = false;
+  render(); save(); hud(); scheduleStuck();
+}
+
+/* ---------- moves ---------- */
+const levelOf = g => LEVELS[g.level] ? g.level : 'hard';
+const tally = lv => stats.by[lv] || (stats.by[lv] = {played: 0, won: 0});
+function startClock(){ if(!S.started){ S.started = true; stats.played++; tally(levelOf(S)).played++; saveStats(); } }
+function recordLine(){
+  const t = tally(levelOf(S)), name = LEVELS[levelOf(S)].name;
+  const mine = `${name}: won ${t.won} of ${t.played}`;
+  return !t.played || t.played === stats.played ? `You've won ${stats.won} of ${stats.played} games` : `${mine} · All: ${stats.won} of ${stats.played}`;
+}
+function doMove(fromRef, index, toRef){
+  pushHistory();
+  const from = getPile(fromRef), to = getPile(toRef);
+  const ids = from.splice(index);
+  to.push(...ids);
+  if(S.log) S.log.push({f: {...fromRef}, i: index, t: {...toRef}});
+  if(fromRef.k === 't' && from.length && !S.up[last(from)]) S.up[last(from)] = true;
+  S.moves++; startClock();
+  render(ids); save(); hud();
+  checkEnd();
+}
+function draw(){
+  if(busy) return;
+  if(S.stock.length){
+    pushHistory(); if(S.log) S.log.push({d: 1});
+    const n = Math.min(S.draw, S.stock.length), moved = [];
+    for(let i = 0; i < n; i++){ const id = S.stock.pop(); S.up[id] = true; S.waste.push(id); moved.push(id); }
+    S.moves++; startClock(); render(moved);
+  } else if(S.waste.length){
+    pushHistory(); if(S.log) S.log.push({d: 1});
+    S.stock = S.waste.reverse(); S.waste = [];
+    S.stock.forEach(id => S.up[id] = false);
+    S.moves++; render();
+  } else return;
+  save(); hud(); scheduleStuck();
+}
+function tap(id){
+  if(busy) return;
+  const loc = locate(id); if(!loc) return;
+  const {ref, index} = loc, pile = getPile(ref);
+  if(ref.k === 's'){ draw(); return; }
+  if(!S.up[id]) return nope(id);
+  const isTop = index === pile.length - 1;
+  if((ref.k === 'w' || ref.k === 'f') && !isTop) return nope(id);
+  if(isTop && ref.k !== 'f'){
+    for(let f = 0; f < 4; f++) if(canFound(id, f)) return doMove(ref, index, {k:'f', i:f});
+  }
+  const order = [];
+  for(let c = 0; c < 7; c++) if(S.t[c].length) order.push(c);
+  for(let c = 0; c < 7; c++) if(!S.t[c].length) order.push(c);
+  for(const c of order){
+    const to = {k:'t', i:c};
+    if(sameRef(to, ref)) continue;
+    if(!S.t[c].length && ref.k === 't' && index === 0) continue;
+    if(canTab(id, c)) return doMove(ref, index, to);
+  }
+  nope(id);
+}
+function nope(id){
+  const el = els[id]; if(!el) return;
+  el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope');
+}
+
+/* ---------- end of game ---------- */
+function checkEnd(){
+  if(S.f.every(p => p.length === 13)){ win(); return; }
+  if(!auto && !S.stock.length && !S.waste.length && S.t.every(col => col.every(id => S.up[id]))){ autoFinish(); return; }
+  if(!auto) scheduleStuck();
+}
+function autoFinish(){
+  auto = true; busy = true;
+  const step = () => {
+    let best = null;
+    S.t.forEach((col, c) => {
+      if(!col.length) return;
+      const id = last(col);
+      for(let f = 0; f < 4; f++) if(canFound(id, f) && (!best || info(id).rank < info(best.id).rank)) best = {id, c, f};
+    });
+    if(!best){ auto = false; busy = false; return; }
+    busy = false;
+    doMove({k:'t', i:best.c}, S.t[best.c].length - 1, {k:'f', i:best.f});
+    busy = true;
+    if(S.won){ auto = false; busy = false; return; }
+    setTimeout(step, reduced ? 20 : 90);
+  };
+  setTimeout(step, 250);
+}
+function win(){
+  if(S.won) return;
+  S.won = true; stats.won++; tally(levelOf(S)).won++; saveStats(); save(); hud();
+  $('stuck').hidden = true;
+  $('winLine').textContent = `Deal ${S.seed} · ${S.moves} moves · ${fmt(S.elapsed)}`;
+  $('winRecord').textContent = recordLine();
+  setTimeout(() => { $('win').hidden = false; $('btnAgain').focus(); }, 500);
+}
+
+/* ---------- stuck: no useful moves left ---------- */
+let stuckTimer = null;
+function scheduleStuck(){
+  clearTimeout(stuckTimer);
+  stuckTimer = setTimeout(checkStuck, reduced ? 120 : 420);
+}
+function isStuck(){
+  if(!S || S.won || auto) return false;
+  try{ return !KL.hasUsefulMove(toPos(S)); }catch(e){ return false; }
+}
+function checkStuck(){
+  if(R) return;
+  if(busy || P){ scheduleStuck(); return; }
+  if(!isStuck()) return;
+  if(S.dismissed) return;
+  openStuck();
+}
+function openStuck(){
+  $('sheet').hidden = true;
+  $('stuckNote').textContent = `${LEVELS[levelOf(S)].name} · Deal ${S.seed} · Draw ${S.draw} · ${S.moves} moves · ${fmt(S.elapsed)}`;
+  showVerdict();
+  $('stuck').hidden = false;
+  if(!verdicts[dealKey(S)] && !worker) requestVerdict();
+}
+function closeStuck(){
+  if($('stuck').hidden) return;
+  S.dismissed = true; save();
+  $('stuck').hidden = true;
+}
+const VERDICTS = {
+  win: {chip: 'Winnable deal', mark: '♥︎', text: 'There was a way to win this deal from the first card. Restart it to try a different line.'},
+  lose: {chip: 'Unwinnable deal', mark: '♣︎', text: 'No sequence of moves could have won this deal. It was lost from the start, so a new deal is the way to go.'},
+  unknown: {chip: "Couldn't tell", mark: '♦︎', text: 'This deal was too complex to check all the way through, so there is no answer for whether it could be won.'},
+  pending: {chip: 'Checking', mark: '♠︎', text: 'Working out whether this deal could have been won from the start. This usually takes a few seconds.'}
+};
+function showVerdict(){
+  const v = verdicts[dealKey(S)] || 'pending', d = VERDICTS[v];
+  $('verdict').dataset.v = v;
+  $('verdictChip').textContent = d.chip;
+  $('verdictMark').textContent = d.mark;
+  $('verdictText').textContent = d.text;
+  $('stRestart').classList.toggle('lead', v === 'win');
+  $('stNew').classList.toggle('lead', v === 'lose');
+  $('stUndo').disabled = !history.length;
+  $('stReview').hidden = v === 'lose' || !canReview();
+}
+
+/* ---------- hints ---------- */
+function findHint(){
+  const wTop = last(S.waste);
+  const tops = [];
+  if(wTop) tops.push(wTop);
+  S.t.forEach(col => col.length && tops.push(last(col)));
+  for(const id of tops) for(let f = 0; f < 4; f++) if(canFound(id, f)) return {src:id, dst:{k:'f', i:f}};
+  for(let c = 0; c < 7; c++){
+    const col = S.t[c], i = col.findIndex(id => S.up[id]);
+    if(i <= 0) continue;
+    for(let d = 0; d < 7; d++) if(d !== c && canTab(col[i], d)) return {src:col[i], dst:{k:'t', i:d}};
+  }
+  if(wTop) for(let d = 0; d < 7; d++) if(canTab(wTop, d)) return {src:wTop, dst:{k:'t', i:d}};
+  if(S.stock.length || S.waste.length > 1) return {stock:true};
+  return null;
+}
+function flash(el){ if(!el) return; el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint'); setTimeout(() => el.classList.remove('hint'), 1400); }
+function hint(){
+  if(busy) return;
+  if(isStuck()){ openStuck(); return; }
+  const h = findHint();
+  if(!h){ toast('There is still a way forward. Try moving cards between columns, or one back down from a foundation.'); return; }
+  if(h.stock){
+    flash(S.stock.length ? els[last(S.stock)] : slots.s);
+    toast(S.stock.length ? 'Draw from the stock' : 'Tap the empty stock to turn the waste over');
+    return;
+  }
+  flash(els[h.src]);
+  const dst = getPile(h.dst);
+  setTimeout(() => flash(dst.length ? els[last(dst)] : slots[h.dst.k + h.dst.i]), 250);
+}
+let toastTimer;
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.remove('off');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('off'), 2600);
+}
+
+/* ---------- layout & render ---------- */
+function makeCard(id){
+  const {suit, rank} = info(id), court = rank > 10;
+  const el = document.createElement('div');
+  el.className = 'card'; el.dataset.id = id;
+  el.innerHTML = `<div class="inner"><div class="face${isRed(suit) ? ' red' : ''}"><span class="rk">${RANKS[rank]}</span><span class="st">${SYM[suit]}</span><span class="pip${court ? ' court' : ''}">${court ? RANKS[rank] : SYM[suit]}</span></div><div class="back"></div></div>`;
+  el.setAttribute('aria-label', `${RANK_NAME[rank]} of ${SUIT_NAME[suit]}`);
+  board.appendChild(el);
+  return el;
+}
+function makeSlot(key, label, cls){
+  const el = document.createElement('div');
+  el.className = 'slot' + (cls ? ' ' + cls : ''); el.dataset.slot = key;
+  el.innerHTML = label;
+  board.appendChild(el);
+  return slots[key] = el;
+}
+function computeLayout(){
+  const W = board.clientWidth, H = board.clientHeight;
+  const gap = Math.max(4, Math.round(W * 0.014));
+  let cw = Math.floor((W - 6 * gap) / 7);
+  cw = Math.max(24, Math.min(cw, Math.floor(H / 4.4)));
+  const ch = Math.round(cw * 1.4);
+  const ox = Math.round((W - (7 * cw + 6 * gap)) / 2);
+  G = {W, H, gap, cw, ch, ox, tabY: ch + Math.round(gap * 2.5) + 6, fan: Math.round(cw * 0.3), x: i => ox + i * (cw + gap), colBottom: []};
+  board.style.setProperty('--cw', cw + 'px');
+  board.style.setProperty('--ch', ch + 'px');
+  const put = (el, x, y) => { el.style.left = x + 'px'; el.style.top = y + 'px'; };
+  put(slots.s, G.x(0), 0);
+  for(let f = 0; f < 4; f++) put(slots['f' + f], G.x(3 + f), 0);
+  for(let c = 0; c < 7; c++) put(slots['t' + c], G.x(c), G.tabY);
+}
+function render(boost){
+  const lift = new Set(boost || []);
+  const place = (id, x, y, z) => {
+    const el = els[id];
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    el.dataset.z = z;
+    el.style.zIndex = lift.has(id) ? 1000 + z : z;
+    el.classList.toggle('up', !!S.up[id]);
+  };
+  S.stock.forEach((id, i) => place(id, G.x(0), 0, 10 + i));
+  const n = S.waste.length, fanCount = S.draw === 3 ? Math.min(3, n) : 1;
+  S.waste.forEach((id, i) => {
+    const fromTop = n - 1 - i;
+    const x = G.x(1) + (fromTop < fanCount ? (fanCount - 1 - fromTop) * G.fan : 0);
+    place(id, x, 0, 100 + i);
+  });
+  S.f.forEach((pile, f) => pile.forEach((id, i) => place(id, G.x(3 + f), 0, 200 + i)));
+  const down = G.ch * 0.11, upGap = G.ch * 0.27, avail = G.H - G.tabY - G.ch - 4;
+  S.t.forEach((col, c) => {
+    let need = 0;
+    for(let i = 0; i < col.length - 1; i++) need += S.up[col[i]] ? upGap : down;
+    const k = need > avail && need > 0 ? Math.max(0, avail) / need : 1;
+    let y = G.tabY;
+    col.forEach((id, i) => { place(id, G.x(c), Math.round(y), 300 + i); if(i < col.length - 1) y += (S.up[id] ? upGap : down) * k; });
+    G.colBottom[c] = Math.round(y) + G.ch;
+  });
+  slots.s.innerHTML = !S.stock.length && S.waste.length ? '<span>↻</span>' : '';
+  if(lift.size) setTimeout(() => lift.forEach(id => { const el = els[id]; if(el && !el.classList.contains('dragging')) el.style.zIndex = el.dataset.z; }), 260);
+}
+function hud(){
+  $('moves').textContent = S.moves;
+  $('time').textContent = fmt(S.elapsed);
+  $('mode').textContent = LEVELS[levelOf(S)].name + ' · Draw ' + S.draw;
+  $('btnUndo').disabled = !history.length;
+}
+const fmt = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+
+function dealAnim(){
+  if(reduced){ render(); scheduleStuck(); return; }
+  board.classList.add('still');
+  Object.values(els).forEach(el => { el.style.left = G.x(0) + 'px'; el.style.top = '0px'; el.classList.remove('up'); });
+  void board.offsetWidth;
+  board.classList.remove('still');
+  let k = 0;
+  for(let r = 0; r < 7; r++) for(let c = r; c < 7; c++){
+    const el = els[S.t[c][r]];
+    el.style.setProperty('--d', (k * 30) + 'ms');
+    el.style.setProperty('--fd', (k * 30 + 180) + 'ms');
+    k++;
+  }
+  busy = true;
+  render();
+  setTimeout(() => { Object.values(els).forEach(el => { el.style.removeProperty('--d'); el.style.removeProperty('--fd'); }); busy = false; scheduleStuck(); }, k * 30 + 520);
+}
+
+/* ---------- pointer: tap or drag ---------- */
+board.addEventListener('pointerdown', e => {
+  if(busy || R || (e.button && e.button !== 0)) return;
+  const cardEl = e.target.closest('.card'), slotEl = e.target.closest('.slot');
+  P = {x: e.clientX, y: e.clientY, id: cardEl && cardEl.dataset.id, slot: slotEl && slotEl.dataset.slot, drag: false};
+  if(P.id){
+    const loc = locate(P.id);
+    const pile = getPile(loc.ref);
+    P.loc = loc;
+    const draggable = loc.ref.k !== 's' && S.up[P.id] && (loc.ref.k === 't' || loc.index === pile.length - 1);
+    if(draggable){ P.ids = pile.slice(loc.index); P.els = P.ids.map(i => els[i]); }
+  }
+  try{ board.setPointerCapture(e.pointerId); }catch(err){}
+});
+board.addEventListener('pointermove', e => {
+  if(!P || !P.els) return;
+  const dx = e.clientX - P.x, dy = e.clientY - P.y;
+  if(!P.drag && Math.hypot(dx, dy) > 8){
+    P.drag = true;
+    P.els.forEach((el, i) => { el.classList.add('dragging'); el.style.zIndex = 3000 + i; });
+  }
+  if(P.drag){ P.dx = dx; P.dy = dy; P.els.forEach(el => el.style.transform = `translate(${dx}px,${dy}px)`); }
+});
+board.addEventListener('pointerup', () => {
+  const p = P; P = null;
+  if(!p) return;
+  if(p.drag) drop(p);
+  else if(p.id) tap(p.id);
+  else if(p.slot === 's') draw();
+});
+board.addEventListener('pointercancel', () => {
+  const p = P; P = null;
+  if(p && p.drag){ settle(p); render(p.ids); }
+});
+function settle(p){
+  p.els.forEach(el => {
+    el.style.left = (parseFloat(el.style.left) + p.dx) + 'px';
+    el.style.top = (parseFloat(el.style.top) + p.dy) + 'px';
+    el.style.transform = '';
+  });
+  void board.offsetWidth;
+  p.els.forEach(el => el.classList.remove('dragging'));
+}
+function drop(p){
+  settle(p);
+  const first = p.els[0];
+  const r = {x: parseFloat(first.style.left), y: parseFloat(first.style.top), w: G.cw, h: G.ch};
+  const overlap = t => Math.max(0, Math.min(r.x + r.w, t.x + t.w) - Math.max(r.x, t.x)) * Math.max(0, Math.min(r.y + r.h, t.y + t.h) - Math.max(r.y, t.y));
+  const cands = [];
+  if(p.ids.length === 1) for(let f = 0; f < 4; f++) cands.push({ref:{k:'f', i:f}, rect:{x:G.x(3 + f), y:0, w:G.cw, h:G.ch}});
+  for(let c = 0; c < 7; c++) cands.push({ref:{k:'t', i:c}, rect:{x:G.x(c), y:G.tabY, w:G.cw, h:Math.max(G.H, G.colBottom[c] || 0) - G.tabY}});
+  cands.forEach(c => c.o = overlap(c.rect));
+  cands.sort((a, b) => b.o - a.o);
+  const id = p.ids[0];
+  for(const c of cands){
+    if(c.o <= 0) break;
+    if(sameRef(c.ref, p.loc.ref)) continue;
+    const ok = c.ref.k === 'f' ? canFound(id, c.ref.i) : canTab(id, c.ref.i);
+    if(ok){ doMove(p.loc.ref, p.loc.index, c.ref); return; }
+  }
+  render(p.ids);
+}
+
+/* ---------- game review ---------- */
+// Two tracks through the game. "you" is what you played: states[0..n]. "win" shares
+// your moves up to the turning point k, then follows a winning line from there.
+// The view shows a position and describes the move made from it, with that move's
+// cards outlined on the table.
+const REVIEW_KEY = 'klondike-review-v1';
+const canReview = () => { const g = live(); return !!(g && g.log && g.log.length && !g.won); };
+function startReview(from){
+  const real = live();
+  if(!canReview()) return;
+  const states = RV.replay(real.seed, real.draw, real.log);
+  if(!states || !RV.sameTable(states[states.length - 1], real)){ toast("Couldn't replay this game"); return; }
+  $('stuck').hidden = true; $('sheet').hidden = true;
+  const n = states.length - 1;
+  R = {real, from, states, n, stuck: isStuckState(real), track: 'you', i: n, tp: null, line: null, worker: null, tried: 0, playing: null};
+  $('review').hidden = false; document.querySelector('.tools').hidden = true;
+  const k = dealKey(real), logStr = JSON.stringify(real.log);
+  let cached = null;
+  try{ const c = JSON.parse(localStorage.getItem(REVIEW_KEY)); if(c && c.key === k && c.log === logStr) cached = c.tp; }catch(e){}
+  if(cached) finishReview(cached, false);
+  else runReview(states, k, logStr, real);
+  show(true);
+}
+function runReview(states, k, logStr, real){
+  const known = {}, v = verdicts[k];
+  if(v === 'win' || v === 'lose') known[0] = v;
+  if(R.stuck) known[R.n] = 'lose';
+  const positions = states.map(toPos);
+  const done = tp => {
+    if(!R) return;
+    R.worker = null;
+    try{ localStorage.setItem(REVIEW_KEY, JSON.stringify({key: k, log: logStr, tp})); }catch(e){}
+    finishReview(tp, true);
+  };
+  const job = {type: 'review', positions, known, ms: 90000, perMs: 25000, quickMs: 3000, tableBits: 21};
+  try{
+    if(!workerUrl) workerUrl = URL.createObjectURL(new Blob([$('klsrc').textContent + WORKER_GLUE], {type: 'text/javascript'}));
+    const w = new Worker(workerUrl);
+    R.worker = w;
+    w.onmessage = e => {
+      if(!R || R.worker !== w) return;
+      if(e.data.type === 'progress'){ R.tried = e.data.tried; show(); }
+      else { w.terminate(); done(e.data.tp); }
+    };
+    w.onerror = ev => { ev.preventDefault && ev.preventDefault(); if(R && R.worker === w){ R.worker = null; here(); } };
+    w.postMessage(job);
+  }catch(e){ here(); }
+  // Without background workers: a shorter search on the page itself.
+  function here(){ setTimeout(() => { if(!R) return; let tp; try{ tp = KL.turningPoint(positions, {...job, ms: 8000, quickMs: 1000, perMs: 4000}); }catch(e){ tp = {k: -1, lost: R.n + 1, exact: false}; } done(tp); }, 50); }
+}
+function isStuckState(g){ try{ return !KL.hasUsefulMove(toPos(g)); }catch(e){ return false; } }
+function finishReview(tp, jump){
+  R.tp = tp;
+  if(tp.k >= 0 && tp.path){
+    R.line = RV.lineFrom(R.states[tp.k], tp.path);
+    if(!R.line) R.tp = {...tp, k: -1};
+  }
+  if(R.tp.k >= 0){ R.track = 'win'; R.i = R.tp.k; }
+  show(true);
+}
+function endReview(){
+  if(!R) return;
+  stopPlay();
+  if(R.worker){ R.worker.terminate(); R.worker = null; }
+  const from = R.from;
+  S = R.real; R = null;
+  clearMarks();
+  $('review').hidden = true; document.querySelector('.tools').hidden = false;
+  board.classList.add('still'); render(); void board.offsetWidth; board.classList.remove('still');
+  hud();
+  if(from === 'stuck' && isStuck()) openStuck();
+}
+
+// Positions and moves on the current track.
+function trackLen(){ return R.track === 'win' && R.line ? R.tp.k + R.line.steps.length : R.n; }
+function stateAt(i){ return R.track === 'win' && R.line && i > R.tp.k ? R.line.states[i - R.tp.k] : R.states[i]; }
+function moveAt(i){
+  // {kind:'you', act} for one of your moves, {kind:'win', step} for the winning line.
+  if(R.track === 'win' && R.line && i >= R.tp.k) return i - R.tp.k < R.line.steps.length ? {kind: 'win', step: R.line.steps[i - R.tp.k]} : null;
+  return i < R.n ? {kind: 'you', act: R.real.log[i]} : null;
+}
+function step(d){ stopPlay(); go(R.i + d); }
+function go(i, still){
+  if(!R) return;
+  const prevI = R.i;
+  i = Math.max(0, Math.min(trackLen(), i));
+  const boost = i === prevI + 1 ? movedIds(prevI) : null;
+  R.i = i;
+  show(still || Math.abs(i - prevI) > 1, boost);
+}
+function movedIds(i){
+  const m = moveAt(i); if(!m) return null;
+  const g = stateAt(i);
+  if(m.kind === 'you') return RV.cardsOf(g, m.act);
+  const a = m.step.acts[m.step.taps];
+  const h = RV.clone(g); for(let t = 0; t < m.step.taps; t++) RV.apply(h, m.step.acts[t]);
+  return a && !a.d ? RV.cardsOf(h, a) : null;
+}
+function clearMarks(){
+  board.querySelectorAll('.mark-you,.mark-win').forEach(el => el.classList.remove('mark-you', 'mark-win'));
+}
+// Outline the cards a move picks up and where they land.
+function markAct(g, a, cls){
+  if(a.d){ const el = g.stock.length ? els[last(g.stock)] : slots.s; el.classList.add(cls); return; }
+  RV.cardsOf(g, a).forEach(id => els[id].classList.add(cls));
+  const dst = RV.pile(g, a.t);
+  (dst.length ? els[last(dst)] : slots[a.t.k + a.t.i]).classList.add(cls);
+}
+function markStep(g, st, cls){
+  if(st.finish) return;
+  if(st.taps){ (g.stock.length ? els[last(g.stock)] : slots.s).classList.add(cls); const dst = st.acts[st.taps].t; const p = RV.pile(g, dst); (p.length ? els[last(p)] : slots[dst.k + dst.i]).classList.add(cls); return; }
+  markAct(g, st.acts[0], cls);
+}
+const el = (tag, cls, text) => { const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; };
+function row(tagCls, tagText, text){ const r = el('div', 'rv-row'); r.append(el('span', 'tag ' + tagCls, tagText), el('span', '', text)); return r; }
+
+function show(still, boost){
+  const tp = R.tp, i = R.i, n = R.n, k = tp ? tp.k : -1;
+  const g = stateAt(i);
+  S = {...RV.clone(g), seed: R.real.seed, draw: R.real.draw, moves: i, elapsed: R.real.elapsed, started: true, won: false};
+  if(still){ board.classList.add('still'); render(); void board.offsetWidth; board.classList.remove('still'); }
+  else render(boost);
+  hud();
+  clearMarks();
+
+  // tabs
+  const hasLine = !!(tp && R.line);
+  $('rvWin').disabled = !hasLine;
+  $('rvYou').setAttribute('aria-selected', R.track === 'you');
+  $('rvWin').setAttribute('aria-selected', R.track === 'win');
+  $('rvJump').hidden = !hasLine || i === k;
+
+  // where we are, and whether the deal could still be won from here
+  const len = trackLen(), onLine = R.track === 'win' && hasLine && i > k;
+  $('rvCount').textContent = onLine ? `Winning line · step ${i - k} of ${len - k}` : i < n ? `Move ${i + 1} of ${n}` : `End · ${n} moves`;
+  const st = $('rvState');
+  st.hidden = !tp;
+  if(tp){
+    let cls = 'maybe', txt = 'Not sure';
+    if(onLine || (k >= 0 && i <= k)){ cls = 'ok'; txt = 'Winnable'; }
+    else if(i >= tp.lost){ cls = 'lost'; txt = 'Lost'; }
+    st.className = 'state ' + cls; st.textContent = txt;
+  }
+
+  // what happens next
+  const body = $('rvBody'); body.replaceChildren();
+  const m = moveAt(i);
+  if(!tp){
+    body.append(el('p', 'rv-text', 'Finding the move where this game slipped away…'),
+      el('p', 'rv-sub', R.tried ? `Checked ${R.tried} position${R.tried === 1 ? '' : 's'} so far. You can step through your game meanwhile.` : 'This usually takes a few seconds, sometimes up to a minute and a half.'));
+    if(m) markAct(g, m.act, 'mark-you'), body.append(row('you', 'You', RV.actText(g, m.act)));
+  } else if(hasLine && i === k){
+    // The turning point: your move and the winning move side by side.
+    const yours = i < n ? RV.actText(g, R.real.log[i]) : null;
+    const win = R.line.steps.length ? RV.stepText(R.line.steps[0]) : 'Nothing: the game is won from here';
+    if(i < n) markAct(g, R.real.log[i], 'mark-you');
+    if(R.line.steps.length) markStep(g, R.line.steps[0], 'mark-win');
+    if(i === n){
+      body.append(el('p', 'rv-text', 'You can still win this one. Here is the way through:'), row('win', 'Next', win));
+    } else {
+      body.append(row('you', 'You', yours), row('win', 'Win', win));
+      body.append(el('p', 'rv-sub', tp.exact
+        ? 'Until here the deal could still be won; after your move it couldn’t. The winning line knows where every card is, face-down ones included.'
+        : `The last point a win could be confirmed. By move ${Math.min(tp.lost, n)} it was certainly lost. The winning line knows where every card is.`));
+    }
+  } else if(m && m.kind === 'win'){
+    markStep(g, m.step, 'mark-win');
+    body.append(row('win', 'Win', RV.stepText(m.step)));
+  } else if(m){
+    markAct(g, m.act, 'mark-you');
+    body.append(row('you', 'You', RV.actText(g, m.act)));
+    if(hasLine && i < k && i === 0) body.append(el('p', 'rv-sub', `Your first ${k} moves kept the deal winnable. Jump to the turning point to see where it went wrong.`));
+  } else if(R.track === 'win' && hasLine){
+    body.append(el('p', 'rv-text', 'Won. Every card is on the foundations.'), el('p', 'rv-sub', 'Replay the deal to try it yourself.'));
+  } else {
+    body.append(el('p', 'rv-text', R.stuck ? 'This is where you ran out of useful moves.' : 'This is where your game is now.'));
+    if(hasLine) body.append(el('p', 'rv-sub', 'Switch to Winning line to see how it could have gone.'));
+  }
+  if(tp && k < 0 && i === n){
+    body.replaceChildren(el('p', 'rv-text', tp.lost === 0
+      ? 'This deal couldn’t be won from the start, even knowing where every card was. Nothing you did lost it.'
+      : 'This deal was too complex to check all the way through, so there’s no winning line to show.'));
+    if(tp.lost > 0 && tp.lost <= n) body.append(el('p', 'rv-sub', `It was certainly lost by move ${tp.lost}.`));
+  }
+
+  $('rvStart').disabled = i === 0;
+  $('rvPrev').disabled = i === 0;
+  $('rvNext').disabled = i >= len;
+  $('rvPlay').disabled = i >= len && !R.playing;
+  $('rvPlay').textContent = R.playing ? 'Pause' : 'Play';
+}
+function stopPlay(){ if(R && R.playing){ clearInterval(R.playing); R.playing = null; } }
+function togglePlay(){
+  if(R.playing){ stopPlay(); show(true); return; }
+  if(R.i >= trackLen()) return;
+  R.playing = setInterval(() => {
+    if(!R || R.i >= trackLen()){ stopPlay(); if(R) show(true); return; }
+    go(R.i + 1);
+  }, reduced ? 1400 : 1100);
+  show(true);
+}
+function setTrack(t){
+  if(!R || R.track === t || (t === 'win' && !R.line)) return;
+  stopPlay();
+  R.track = t;
+  // Past the turning point the tracks differ, so jump back to it.
+  if(R.tp && R.tp.k >= 0 && R.i > R.tp.k) R.i = R.tp.k;
+  show(true);
+}
+$('rvYou').onclick = () => setTrack('you');
+$('rvWin').onclick = () => setTrack('win');
+$('rvPrev').onclick = () => step(-1);
+$('rvNext').onclick = () => step(1);
+$('rvStart').onclick = () => { stopPlay(); go(0, true); };
+$('rvPlay').onclick = togglePlay;
+$('rvJump').onclick = () => { stopPlay(); go(R.tp.k, true); };
+$('rvClose').onclick = endReview;
+$('rvReplay').onclick = () => { const g = R.real; endReview(); newGame(g.draw, g.seed); };
+$('stReview').onclick = () => startReview('stuck');
+$('optReview').onclick = () => startReview('menu');
+
+/* ---------- menus ---------- */
+// Easy and Normal pick a deal that is checked before you see it:
+//   Easy   - a plain strategy that only looks at face-up cards wins it, played two
+//            slightly different ways (KL.playsOut), so ordinary sensible play works.
+//   Normal - the solver finds a win with every card visible (a quick check; deals it
+//            can't settle fast are skipped).
+//   Hard   - any shuffle, as dealt.
+// Either way the deal is still a fair shuffle; Easy and Normal just skip some.
+const randomSeed = () => Math.floor(Math.random() * 900000) + 100000;
+function pickSeed(draw, lv){
+  if(lv === 'hard') return randomSeed();
+  const until = Date.now() + 1500;
+  let tries = 0;
+  while(Date.now() < until || tries < 3){
+    const seed = randomSeed(), pos = toPos(deal(seed, draw));
+    tries++;
+    let ok = false;
+    try{
+      ok = lv === 'easy' ? KL.playsOut(pos, 0) && KL.playsOut(pos, 1)
+        : KL.solve(pos, {maxNodes: 5000, tableBits: 17}).result === 'win';
+    }catch(e){}
+    if(ok){ verdicts[seed + ':' + draw] = 'win'; saveVerdicts(); return seed; }
+  }
+  return randomSeed();
+}
+function newGame(draw, seed, lv){
+  lv = lv || (seed != null && S ? levelOf(S) : level);
+  S = deal(seed ?? pickSeed(draw, lv), draw);
+  S.level = lv;
+  history = [];
+  $('win').hidden = true; $('stuck').hidden = true; $('sheet').hidden = true;
+  save(); hud(); dealAnim();
+  requestVerdict();
+}
+function openSheet(){
+  $('record').textContent = stats.played ? recordLine() : 'Your first game is on the table';
+  showLevel();
+  $('replayLabel').textContent = `Replay deal ${S.seed}`;
+  $('optD1').classList.toggle('current', S.draw === 1);
+  $('optD3').classList.toggle('current', S.draw === 3);
+  $('optReview').hidden = !canReview();
+  $('sheet').hidden = false;
+}
+const closeSheet = () => $('sheet').hidden = true;
+$('btnNew').onclick = openSheet;
+$('btnHint').onclick = hint;
+$('btnUndo').onclick = undo;
+function showLevel(){
+  document.querySelectorAll('.seg.level button').forEach(b => b.setAttribute('aria-selected', b.dataset.level === level));
+  $('levelNote').textContent = LEVELS[level].note;
+}
+document.querySelectorAll('.seg.level button').forEach(b => b.onclick = () => {
+  level = b.dataset.level;
+  try{ localStorage.setItem(LEVEL_KEY, level); }catch(e){}
+  showLevel();
+});
+$('optD1').onclick = () => newGame(1);
+$('optD3').onclick = () => newGame(3);
+$('optReplay').onclick = () => newGame(S.draw, S.seed);
+$('optClose').onclick = closeSheet;
+$('sheet').addEventListener('click', e => { if(e.target.id === 'sheet') closeSheet(); });
+$('stRestart').onclick = () => newGame(S.draw, S.seed);
+$('stNew').onclick = () => newGame(S.draw, null, level);
+$('stUndo').onclick = () => { $('stuck').hidden = true; undo(); };
+$('stClose').onclick = closeStuck;
+$('stuck').addEventListener('click', e => { if(e.target.id === 'stuck') closeStuck(); });
+$('btnAgain').onclick = () => newGame(S.draw, null, level);
+document.addEventListener('keydown', e => {
+  if(R){
+    if(e.key === 'ArrowRight') step(1);
+    else if(e.key === 'ArrowLeft') step(-1);
+    else if(e.key === 'Escape') endReview();
+    return;
+  }
+  if(e.key === 'Escape'){ closeSheet(); closeStuck(); }
+  if((e.ctrlKey || e.metaKey) && e.key === 'z'){ e.preventDefault(); undo(); }
+});
+
+/* ---------- clock ---------- */
+setInterval(() => {
+  if(S && !R && S.started && !S.won && !document.hidden && $('sheet').hidden && $('stuck').hidden){
+    S.elapsed++; $('time').textContent = fmt(S.elapsed);
+    if(S.elapsed % 5 === 0) save();
+  }
+}, 1000);
+document.addEventListener('visibilitychange', () => { if(document.hidden && S) save(); });
+
+/* ---------- boot ---------- */
+function start(data){
+  makeSlot('s', '', 'stock');
+  for(let f = 0; f < 4; f++) makeSlot('f' + f, 'A');
+  for(let c = 0; c < 7; c++) makeSlot('t' + c, 'K');
+  for(const s of SUITS) for(let k = 1; k <= 13; k++) els[s + k] = makeCard(s + k);
+  computeLayout();
+
+  const saved = data && data.S ? data.S : load();
+  if(data && data.history) history = data.history;
+  if(saved && !saved.won){
+    S = saved;
+    board.classList.add('still'); render(); void board.offsetWidth; board.classList.remove('still');
+    hud();
+    requestVerdict();
+    scheduleStuck();
+  } else {
+    newGame(saved ? saved.draw : 1);
+  }
+  new ResizeObserver(() => {
+    if(!S) return;
+    board.classList.add('still'); computeLayout(); render();
+    requestAnimationFrame(() => board.classList.remove('still'));
+  }).observe(board);
+}
+try{ window.claude?.hot?.snapshot?.(() => ({S: live(), history})); }catch(e){}
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>
+<script>
+// Offline support for the installed web app (the Android app ships its files inside).
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !/[?&]app=1/.test(location.search)) {
+  navigator.serviceWorker.register('sw.js').catch(function () {});
+}
+</script>
+</body>
+</html>
