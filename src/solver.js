@@ -448,7 +448,76 @@ var KL = (function () {
     return { k: lo, lost: hi, exact: lo >= 0 && hi === lo + 1, path: lo >= 0 ? paths[lo] : null, tried: tried };
   }
 
-  return { solve: solve, hasUsefulMove: hasUsefulMove, turningPoint: turningPoint };
+  // ---------- plain strategy (for Easy deals) ----------
+  // Plays a deal the way a sensible player does, deciding only from cards that are face
+  // up: play to the foundations, uncover face-down cards, play from the waste, put kings
+  // in empty columns, otherwise turn the stock. Returns true if that wins. A deal this
+  // passes can be won without any lucky guesses.
+  // variant 1 breaks ties the other way (other columns first, fewest face-down first),
+  // standing in for a player who makes different but equally sensible choices.
+  function playsOut(inp, variant) {
+    var V = variant ? [6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6];
+    var cols = inp.cols.map(function (c) { return c.slice(); }), down = inp.down.slice(), found = inp.found.slice();
+    var talon = inp.talon.slice(), w = inp.w, N = inp.draw;
+    function top(s) { return cols[s][cols[s].length - 1]; }
+    function fits(c, d) {
+      var p = cols[d];
+      if (!p.length) return rank(c) === 12;
+      var t = p[p.length - 1];
+      return red(t) !== red(c) && rank(t) === rank(c) + 1;
+    }
+    function canF(c) { return found[suit(c)] === rank(c); }
+    function safeUp(c) {
+      var r = rank(c), o = OPP[suit(c)];
+      return r <= 1 || (found[o[0]] >= r - 1 && found[o[1]] >= r - 1);
+    }
+    function flip(s) { if (cols[s].length && down[s] === cols[s].length) down[s]--; }
+    function toF(s) { found[suit(cols[s].pop())]++; flip(s); }
+    function move(s, idx, d) { Array.prototype.push.apply(cols[d], cols[s].splice(idx)); flip(s); }
+    function wasteTo(d) { var c = talon.splice(w, 1)[0]; w--; if (d < 0) found[suit(c)]++; else cols[d].push(c); }
+    function step() {
+      var s, d, c, idx;
+      // 1. Cards that can go up with no downside, or that turn over a card when they do.
+      for (s = 0; s < 7; s++) if (cols[s].length && canF(top(s)) && (safeUp(top(s)) || down[s] === cols[s].length - 1)) { toF(s); return true; }
+      if (w >= 0 && canF(talon[w]) && safeUp(talon[w])) { wasteTo(-1); return true; }
+      // 2. Move a face-up run to uncover a face-down card, most face-down cards first.
+      var order = V.slice().sort(function (a, b) { return variant ? down[a] - down[b] : down[b] - down[a]; }), j;
+      for (var k = 0; k < 7; k++) {
+        s = order[k]; idx = down[s];
+        if (!down[s] || idx >= cols[s].length) continue;
+        c = cols[s][idx];
+        for (j = 0; j < 7; j++) { d = V[j]; if (d !== s && cols[d].length && fits(c, d)) { move(s, idx, d); return true; } }
+        if (rank(c) === 12) for (j = 0; j < 7; j++) { d = V[j]; if (!cols[d].length) { move(s, idx, d); return true; } }
+      }
+      // 3. Play the waste card: up, onto the table, or a king into an empty column.
+      if (w >= 0) {
+        c = talon[w];
+        if (canF(c)) { wasteTo(-1); return true; }
+        for (j = 0; j < 7; j++) { d = V[j]; if (cols[d].length && fits(c, d)) { wasteTo(d); return true; } }
+        if (rank(c) === 12) for (d = 0; d < 7; d++) if (!cols[d].length) { wasteTo(d); return true; }
+      }
+      // 4. Any other card that can go up.
+      for (s = 0; s < 7; s++) if (cols[s].length && canF(top(s))) { toF(s); return true; }
+      // 5. Shift part of a run so the card under it can go up.
+      for (s = 0; s < 7; s++) for (idx = down[s] + 1; idx < cols[s].length; idx++) {
+        if (!canF(cols[s][idx - 1])) continue;
+        for (d = 0; d < 7; d++) if (d !== s && cols[d].length && fits(cols[s][idx], d)) { move(s, idx, d); return true; }
+      }
+      return false;
+    }
+    var idle = 0;
+    for (var guard = 0; guard < 5000; guard++) {
+      if (found[0] + found[1] + found[2] + found[3] === 52) return true;
+      if (step()) { idle = 0; continue; }
+      // Nothing to play: turn the stock. A whole pass with nothing played means stuck.
+      var L = talon.length;
+      if (!L || ++idle > Math.ceil(L / N) + 2) return false;
+      w = w < L - 1 ? Math.min(w + N, L - 1) : -1;
+    }
+    return false;
+  }
+
+  return { solve: solve, hasUsefulMove: hasUsefulMove, turningPoint: turningPoint, playsOut: playsOut };
 })();
 
 if (typeof module !== 'undefined') module.exports = KL;

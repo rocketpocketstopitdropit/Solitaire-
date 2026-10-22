@@ -210,6 +210,8 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .slot.mark-you{border-color:var(--ink);border-width:2.5px}
 .slot.mark-win{border-color:var(--brass);border-width:2.5px}
 .opt.review-opt{border-color:rgba(216,180,106,.45)}
+.seg.level{grid-template-columns:repeat(3,1fr);flex:none}
+.seg.level button{height:38px;font-size:14px}
 
 @media (prefers-reduced-motion:reduce){
   .card,.inner{transition:none!important}
@@ -220,11 +222,10 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 <body>
 <div class="app">
   <header class="bar">
-    <div class="brand">Klondike<span class="deal" id="dealNo">Deal</span></div>
+    <div class="brand">Klondike<span class="deal" id="mode">Normal · Draw 1</span></div>
     <div class="stats">
       <span><b id="moves">0</b> moves</span>
       <span><b id="time">0:00</b></span>
-      <span id="mode">Draw 1</span>
     </div>
   </header>
   <main class="board" id="board" aria-label="Card table"></main>
@@ -261,8 +262,14 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
   <div class="panel" role="dialog" aria-labelledby="sheetTitle">
     <h2 id="sheetTitle">New game</h2>
     <p class="note" id="record">No games played yet</p>
-    <button class="opt" id="optD1" type="button"><b>Deal · Draw 1</b><span>Turn one card at a time. Most games are winnable.</span></button>
-    <button class="opt" id="optD3" type="button"><b>Deal · Draw 3</b><span>The classic rules. Harder, and more satisfying.</span></button>
+    <div class="seg level" role="tablist" aria-label="Difficulty">
+      <button type="button" role="tab" data-level="easy">Easy</button>
+      <button type="button" role="tab" data-level="normal">Normal</button>
+      <button type="button" role="tab" data-level="hard">Hard</button>
+    </div>
+    <p class="note" id="levelNote"></p>
+    <button class="opt" id="optD1" type="button"><b>Deal · Draw 1</b><span>Turn one card at a time.</span></button>
+    <button class="opt" id="optD3" type="button"><b>Deal · Draw 3</b><span>Turn three at a time. The classic rules, and much harder.</span></button>
     <button class="opt" id="optReplay" type="button"><b id="replayLabel">Replay this deal</b><span>Start the same cards over from the beginning.</span></button>
     <button class="opt review-opt" id="optReview" type="button"><b>Review this game</b><span>Check whether it can still be won, and where it went wrong if not.</span></button>
     <button class="opt plain" id="optClose" type="button">Keep playing</button>
@@ -750,7 +757,76 @@ var KL = (function () {
     return { k: lo, lost: hi, exact: lo >= 0 && hi === lo + 1, path: lo >= 0 ? paths[lo] : null, tried: tried };
   }
 
-  return { solve: solve, hasUsefulMove: hasUsefulMove, turningPoint: turningPoint };
+  // ---------- plain strategy (for Easy deals) ----------
+  // Plays a deal the way a sensible player does, deciding only from cards that are face
+  // up: play to the foundations, uncover face-down cards, play from the waste, put kings
+  // in empty columns, otherwise turn the stock. Returns true if that wins. A deal this
+  // passes can be won without any lucky guesses.
+  // variant 1 breaks ties the other way (other columns first, fewest face-down first),
+  // standing in for a player who makes different but equally sensible choices.
+  function playsOut(inp, variant) {
+    var V = variant ? [6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6];
+    var cols = inp.cols.map(function (c) { return c.slice(); }), down = inp.down.slice(), found = inp.found.slice();
+    var talon = inp.talon.slice(), w = inp.w, N = inp.draw;
+    function top(s) { return cols[s][cols[s].length - 1]; }
+    function fits(c, d) {
+      var p = cols[d];
+      if (!p.length) return rank(c) === 12;
+      var t = p[p.length - 1];
+      return red(t) !== red(c) && rank(t) === rank(c) + 1;
+    }
+    function canF(c) { return found[suit(c)] === rank(c); }
+    function safeUp(c) {
+      var r = rank(c), o = OPP[suit(c)];
+      return r <= 1 || (found[o[0]] >= r - 1 && found[o[1]] >= r - 1);
+    }
+    function flip(s) { if (cols[s].length && down[s] === cols[s].length) down[s]--; }
+    function toF(s) { found[suit(cols[s].pop())]++; flip(s); }
+    function move(s, idx, d) { Array.prototype.push.apply(cols[d], cols[s].splice(idx)); flip(s); }
+    function wasteTo(d) { var c = talon.splice(w, 1)[0]; w--; if (d < 0) found[suit(c)]++; else cols[d].push(c); }
+    function step() {
+      var s, d, c, idx;
+      // 1. Cards that can go up with no downside, or that turn over a card when they do.
+      for (s = 0; s < 7; s++) if (cols[s].length && canF(top(s)) && (safeUp(top(s)) || down[s] === cols[s].length - 1)) { toF(s); return true; }
+      if (w >= 0 && canF(talon[w]) && safeUp(talon[w])) { wasteTo(-1); return true; }
+      // 2. Move a face-up run to uncover a face-down card, most face-down cards first.
+      var order = V.slice().sort(function (a, b) { return variant ? down[a] - down[b] : down[b] - down[a]; }), j;
+      for (var k = 0; k < 7; k++) {
+        s = order[k]; idx = down[s];
+        if (!down[s] || idx >= cols[s].length) continue;
+        c = cols[s][idx];
+        for (j = 0; j < 7; j++) { d = V[j]; if (d !== s && cols[d].length && fits(c, d)) { move(s, idx, d); return true; } }
+        if (rank(c) === 12) for (j = 0; j < 7; j++) { d = V[j]; if (!cols[d].length) { move(s, idx, d); return true; } }
+      }
+      // 3. Play the waste card: up, onto the table, or a king into an empty column.
+      if (w >= 0) {
+        c = talon[w];
+        if (canF(c)) { wasteTo(-1); return true; }
+        for (j = 0; j < 7; j++) { d = V[j]; if (cols[d].length && fits(c, d)) { wasteTo(d); return true; } }
+        if (rank(c) === 12) for (d = 0; d < 7; d++) if (!cols[d].length) { wasteTo(d); return true; }
+      }
+      // 4. Any other card that can go up.
+      for (s = 0; s < 7; s++) if (cols[s].length && canF(top(s))) { toF(s); return true; }
+      // 5. Shift part of a run so the card under it can go up.
+      for (s = 0; s < 7; s++) for (idx = down[s] + 1; idx < cols[s].length; idx++) {
+        if (!canF(cols[s][idx - 1])) continue;
+        for (d = 0; d < 7; d++) if (d !== s && cols[d].length && fits(cols[s][idx], d)) { move(s, idx, d); return true; }
+      }
+      return false;
+    }
+    var idle = 0;
+    for (var guard = 0; guard < 5000; guard++) {
+      if (found[0] + found[1] + found[2] + found[3] === 52) return true;
+      if (step()) { idle = 0; continue; }
+      // Nothing to play: turn the stock. A whole pass with nothing played means stuck.
+      var L = talon.length;
+      if (!L || ++idle > Math.ceil(L / N) + 2) return false;
+      w = w < L - 1 ? Math.min(w + N, L - 1) : -1;
+    }
+    return false;
+  }
+
+  return { solve: solve, hasUsefulMove: hasUsefulMove, turningPoint: turningPoint, playsOut: playsOut };
 })();
 
 if (typeof module !== 'undefined') module.exports = KL;
@@ -1002,7 +1078,14 @@ const SYM = {S:'♠︎', H:'♥︎', D:'♦︎', C:'♣︎'};
 const SUIT_NAME = {S:'spades', H:'hearts', D:'diamonds', C:'clubs'};
 const RANKS = ['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const RANK_NAME = ['','Ace','2','3','4','5','6','7','8','9','10','Jack','Queen','King'];
-const KEY = 'klondike-v1', STATS_KEY = 'klondike-stats-v1', VERDICT_KEY = 'klondike-verdicts-v1';
+const KEY = 'klondike-v1', STATS_KEY = 'klondike-stats-v1', VERDICT_KEY = 'klondike-verdicts-v1', LEVEL_KEY = 'klondike-level-v1';
+const LEVELS = {
+  easy: {name: 'Easy', note: 'Deals that straightforward play wins. No lucky guesses needed.'},
+  normal: {name: 'Normal', note: 'Every deal can be won, though some need sharp play.'},
+  hard: {name: 'Hard', note: 'Fully random deals. Some can\u2019t be won at all.'}
+};
+let level = 'normal';
+try{ const l = localStorage.getItem(LEVEL_KEY); if(LEVELS[l]) level = l; }catch(e){}
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const $ = id => document.getElementById(id);
@@ -1014,7 +1097,7 @@ const last = a => a[a.length - 1];
 let S = null, history = [], G = null, busy = false, auto = false, P = null, R = null;
 const els = {};
 const slots = {};
-let stats = {played: 0, won: 0};
+let stats = {played: 0, won: 0, by: {}};
 let verdicts = {};
 
 /* ---------- storage ---------- */
@@ -1028,7 +1111,7 @@ function saveVerdicts(){
   try{ localStorage.setItem(VERDICT_KEY, JSON.stringify(verdicts)); }catch(e){}
 }
 function load(){
-  try{ const s = JSON.parse(localStorage.getItem(STATS_KEY)); if(s) stats = s; }catch(e){}
+  try{ const s = JSON.parse(localStorage.getItem(STATS_KEY)); if(s) stats = {by: {}, ...s}; }catch(e){}
   try{ const v = JSON.parse(localStorage.getItem(VERDICT_KEY)); if(v) verdicts = v; }catch(e){}
   try{ const g = JSON.parse(localStorage.getItem(KEY)); if(g && g.t && g.t.length === 7) return g; }catch(e){}
   return null;
@@ -1125,7 +1208,14 @@ function undo(){
 }
 
 /* ---------- moves ---------- */
-function startClock(){ if(!S.started){ S.started = true; stats.played++; saveStats(); } }
+const levelOf = g => LEVELS[g.level] ? g.level : 'hard';
+const tally = lv => stats.by[lv] || (stats.by[lv] = {played: 0, won: 0});
+function startClock(){ if(!S.started){ S.started = true; stats.played++; tally(levelOf(S)).played++; saveStats(); } }
+function recordLine(){
+  const t = tally(levelOf(S)), name = LEVELS[levelOf(S)].name;
+  const mine = `${name}: won ${t.won} of ${t.played}`;
+  return !t.played || t.played === stats.played ? `You've won ${stats.won} of ${stats.played} games` : `${mine} · All: ${stats.won} of ${stats.played}`;
+}
 function doMove(fromRef, index, toRef){
   pushHistory();
   const from = getPile(fromRef), to = getPile(toRef);
@@ -1205,10 +1295,10 @@ function autoFinish(){
 }
 function win(){
   if(S.won) return;
-  S.won = true; stats.won++; saveStats(); save(); hud();
+  S.won = true; stats.won++; tally(levelOf(S)).won++; saveStats(); save(); hud();
   $('stuck').hidden = true;
   $('winLine').textContent = `Deal ${S.seed} · ${S.moves} moves · ${fmt(S.elapsed)}`;
-  $('winRecord').textContent = `You've won ${stats.won} of ${stats.played} games`;
+  $('winRecord').textContent = recordLine();
   setTimeout(() => { $('win').hidden = false; $('btnAgain').focus(); }, 500);
 }
 
@@ -1231,7 +1321,7 @@ function checkStuck(){
 }
 function openStuck(){
   $('sheet').hidden = true;
-  $('stuckNote').textContent = `Deal ${S.seed} · Draw ${S.draw} · ${S.moves} moves · ${fmt(S.elapsed)}`;
+  $('stuckNote').textContent = `${LEVELS[levelOf(S)].name} · Deal ${S.seed} · Draw ${S.draw} · ${S.moves} moves · ${fmt(S.elapsed)}`;
   showVerdict();
   $('stuck').hidden = false;
   if(!verdicts[dealKey(S)] && !worker) requestVerdict();
@@ -1360,8 +1450,7 @@ function render(boost){
 function hud(){
   $('moves').textContent = S.moves;
   $('time').textContent = fmt(S.elapsed);
-  $('mode').textContent = 'Draw ' + S.draw;
-  $('dealNo').textContent = 'Deal ' + S.seed;
+  $('mode').textContent = LEVELS[levelOf(S)].name + ' · Draw ' + S.draw;
   $('btnUndo').disabled = !history.length;
 }
 const fmt = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
@@ -1669,15 +1758,42 @@ $('stReview').onclick = () => startReview('stuck');
 $('optReview').onclick = () => startReview('menu');
 
 /* ---------- menus ---------- */
-function newGame(draw, seed){
-  S = deal(seed ?? (Math.floor(Math.random() * 900000) + 100000), draw);
+// Easy and Normal pick a deal that is checked before you see it:
+//   Easy   - a plain strategy that only looks at face-up cards wins it, played two
+//            slightly different ways (KL.playsOut), so ordinary sensible play works.
+//   Normal - the solver finds a win with every card visible (a quick check; deals it
+//            can't settle fast are skipped).
+//   Hard   - any shuffle, as dealt.
+// Either way the deal is still a fair shuffle; Easy and Normal just skip some.
+const randomSeed = () => Math.floor(Math.random() * 900000) + 100000;
+function pickSeed(draw, lv){
+  if(lv === 'hard') return randomSeed();
+  const until = Date.now() + 1500;
+  let tries = 0;
+  while(Date.now() < until || tries < 3){
+    const seed = randomSeed(), pos = toPos(deal(seed, draw));
+    tries++;
+    let ok = false;
+    try{
+      ok = lv === 'easy' ? KL.playsOut(pos, 0) && KL.playsOut(pos, 1)
+        : KL.solve(pos, {maxNodes: 5000, tableBits: 17}).result === 'win';
+    }catch(e){}
+    if(ok){ verdicts[seed + ':' + draw] = 'win'; saveVerdicts(); return seed; }
+  }
+  return randomSeed();
+}
+function newGame(draw, seed, lv){
+  lv = lv || (seed != null && S ? levelOf(S) : level);
+  S = deal(seed ?? pickSeed(draw, lv), draw);
+  S.level = lv;
   history = [];
   $('win').hidden = true; $('stuck').hidden = true; $('sheet').hidden = true;
   save(); hud(); dealAnim();
   requestVerdict();
 }
 function openSheet(){
-  $('record').textContent = stats.played ? `You've won ${stats.won} of ${stats.played} games` : 'Your first game is on the table';
+  $('record').textContent = stats.played ? recordLine() : 'Your first game is on the table';
+  showLevel();
   $('replayLabel').textContent = `Replay deal ${S.seed}`;
   $('optD1').classList.toggle('current', S.draw === 1);
   $('optD3').classList.toggle('current', S.draw === 3);
@@ -1688,17 +1804,26 @@ const closeSheet = () => $('sheet').hidden = true;
 $('btnNew').onclick = openSheet;
 $('btnHint').onclick = hint;
 $('btnUndo').onclick = undo;
+function showLevel(){
+  document.querySelectorAll('.seg.level button').forEach(b => b.setAttribute('aria-selected', b.dataset.level === level));
+  $('levelNote').textContent = LEVELS[level].note;
+}
+document.querySelectorAll('.seg.level button').forEach(b => b.onclick = () => {
+  level = b.dataset.level;
+  try{ localStorage.setItem(LEVEL_KEY, level); }catch(e){}
+  showLevel();
+});
 $('optD1').onclick = () => newGame(1);
 $('optD3').onclick = () => newGame(3);
 $('optReplay').onclick = () => newGame(S.draw, S.seed);
 $('optClose').onclick = closeSheet;
 $('sheet').addEventListener('click', e => { if(e.target.id === 'sheet') closeSheet(); });
 $('stRestart').onclick = () => newGame(S.draw, S.seed);
-$('stNew').onclick = () => newGame(S.draw);
+$('stNew').onclick = () => newGame(S.draw, null, level);
 $('stUndo').onclick = () => { $('stuck').hidden = true; undo(); };
 $('stClose').onclick = closeStuck;
 $('stuck').addEventListener('click', e => { if(e.target.id === 'stuck') closeStuck(); });
-$('btnAgain').onclick = () => newGame(S.draw);
+$('btnAgain').onclick = () => newGame(S.draw, null, level);
 document.addEventListener('keydown', e => {
   if(R){
     if(e.key === 'ArrowRight') step(1);

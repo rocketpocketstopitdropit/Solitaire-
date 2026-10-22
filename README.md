@@ -15,6 +15,16 @@ There's also a web version at **https://rocketpocketstopitdropit.github.io/Solit
 - **Stuck check** (`src/solver.js`, `hasUsefulMove`): after every move, the game searches every sequence of moves you could make with the cards you can see. Cycling the stock, shuffling cards between columns and taking cards back off a foundation don't count. If no sequence puts a new card on a foundation, turns over a face-down card or plays a card out of the stock, you're stuck. It never peeks at face-down cards.
 - **Was the deal winnable?** (`solve`): when a deal starts, a background worker solves it with every card visible, the way published studies measure winnability. Draw 3 with unlimited passes is winnable about 82% of the time. The answer stays hidden until you're stuck, so there are no spoilers. A few very complex deals can't be settled within the limit (about 4 minutes, or roughly 5.7 million positions), and the game says so.
 
+## Difficulty
+
+Pick Easy, Normal or Hard in the New game menu. Every deal is still a fair random shuffle; Easy and Normal just skip shuffles that don't qualify, and the check takes a few milliseconds.
+
+- **Easy:** a plain strategy that only looks at face-up cards wins the deal, played two slightly different ways (`playsOut` in `src/solver.js`). Ordinary sensible play works; no lucky guesses. About 12% of Draw 1 shuffles and 2% of Draw 3 shuffles qualify.
+- **Normal:** the solver finds a win with every card visible, in a quick check. Every deal can be won, though some need sharp play.
+- **Hard:** any shuffle. Some deals can't be won at all.
+
+Your record is kept per level as well as overall. Games from before levels existed count as Hard.
+
 ## Reviewing a game
 
 When you're stuck (or any time, from **New game → Review this game**), the game can show you where it went wrong:

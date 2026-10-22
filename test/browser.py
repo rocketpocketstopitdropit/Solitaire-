@@ -34,7 +34,7 @@ with sync_playwright() as p:
     pg.click('#btnHint'); pg.wait_for_timeout(400)
     print('hint reopens =', pg.locator('#stuck').is_visible())
     pg.click('#stRestart'); pg.wait_for_timeout(2500)
-    print('restart: deal =', pg.locator('#dealNo').inner_text(), '| moves =', pg.locator('#moves').inner_text(), '| stuck hidden =', pg.locator('#stuck').is_hidden())
+    print('restart: deal =', pg.evaluate("JSON.parse(localStorage.getItem('klondike-v1')).seed"), '| moves =', pg.locator('#moves').inner_text(), '| stuck hidden =', pg.locator('#stuck').is_hidden())
     # 3. Same stuck game with a cached "lose" verdict, light scheme.
     seed = json.loads(state)['seed']; draw = json.loads(state)['draw']
     pg = page_for("localStorage.clear(); localStorage.setItem('klondike-v1', %s); localStorage.setItem('klondike-verdicts-v1', JSON.stringify({'%s:%s':'lose'}));" % (json.dumps(state), seed, draw), 'light')

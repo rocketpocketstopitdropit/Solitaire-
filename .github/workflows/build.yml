@@ -35,6 +35,10 @@ jobs:
       - name: Check game reviews
         run: node test/review.js 12 0 20000
 
+      # Every Easy deal (won by the plain strategy) must also be winnable per the solver.
+      - name: Check difficulty levels
+        run: node test/levels.js
+
       - name: Build debug APK
         run: |
           set -o pipefail
