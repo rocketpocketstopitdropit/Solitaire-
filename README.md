@@ -15,13 +15,23 @@ There's also a web version at **https://rocketpocketstopitdropit.github.io/Solit
 - **Stuck check** (`src/solver.js`, `hasUsefulMove`): after every move, the game searches every sequence of moves you could make with the cards you can see. Cycling the stock, shuffling cards between columns and taking cards back off a foundation don't count. If no sequence puts a new card on a foundation, turns over a face-down card or plays a card out of the stock, you're stuck. It never peeks at face-down cards.
 - **Was the deal winnable?** (`solve`): when a deal starts, a background worker solves it with every card visible, the way published studies measure winnability. Draw 3 with unlimited passes is winnable about 82% of the time. The answer stays hidden until you're stuck, so there are no spoilers. A few very complex deals can't be settled within the limit (about 4 minutes, or roughly 5.7 million positions), and the game says so.
 
+## Reviewing a game
+
+When you're stuck (or any time, from **New game → Review this game**), the game can show you where it went wrong:
+
+- Every move you make is recorded, so the game can be replayed from the deal. Undone moves drop out.
+- It finds the **turning point**: the last position from which the deal could still be won. Along your line of play a position can only go from winnable to lost, never back, so a binary search over your moves needs only about 8 solver checks (`turningPoint` in `src/solver.js`).
+- The review screen steps through two tracks. **Your game** is what you played. **Winning line** shares your moves up to the turning point, then follows a line that wins from there. At the turning point both moves are shown side by side and outlined on the table: white for yours, gold for the winning one.
+- The solver sees every card, so the winning line can depend on cards that were still face down for you.
+- Hard positions can take a while to settle. The search gets about 90 seconds; if a few positions stay undecided, the review shows the last point a win was confirmed and the first point the game was certainly lost.
+
 ## Project layout
 
-- `src/game.html`, `src/solver.js`: the game and the solver.
+- `src/game.html`, `src/solver.js`, `src/review.js`: the game, the solver, and game replay for reviews.
 - `tools/build.py`: builds `web/index.html` (the web app, also bundled into the Android app) and `dist/artifact.html`.
 - `tools/icons.py`: draws the web app icons.
 - `app/`: a small Android shell (Java, no libraries) that shows `web/` full screen.
-- `test/`: `node test/verify.js` replays every solution the solver finds with a separate rules check. `node test/stuck.js` plays random games until they get stuck and confirms the solver agrees. `node test/quick.js 3 100` measures solve rates.
+- `test/`: `node test/verify.js` replays every solution the solver finds with a separate rules check. `node test/stuck.js` plays random games until they get stuck and confirms the solver agrees. `node test/quick.js 3 100` measures solve rates. `node test/review.js` plays games until stuck and checks each review.
 
 ## Building
 

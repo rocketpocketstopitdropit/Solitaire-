@@ -153,6 +153,45 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 }
 .toast.off{opacity:0}
 
+/* game review: replaces the toolbar while you step through a finished game */
+.review{display:grid;gap:8px;padding-block:8px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(216,180,106,.22)}
+.rv-head{display:flex;align-items:center;gap:8px}
+.seg{flex:1;display:grid;grid-template-columns:1fr 1fr;padding:3px;border-radius:11px;background:rgba(0,0,0,.28);border:1px solid rgba(243,239,228,.1)}
+.seg button{appearance:none;border:0;background:none;color:var(--ink-dim);font:600 13px/1 var(--font-ui);height:34px;border-radius:8px;cursor:pointer}
+.seg button[aria-selected="true"]{background:rgba(216,180,106,.18);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(216,180,106,.5)}
+.seg button:disabled{opacity:.35;cursor:default}
+.rv-icon{appearance:none;height:40px;min-width:40px;padding-inline:10px;border-radius:10px;border:1px solid rgba(243,239,228,.14);background:none;color:var(--ink);font:600 13px var(--font-ui);cursor:pointer}
+.rv-meta{display:flex;align-items:center;gap:8px;min-height:24px;font-size:12px;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+.rv-meta .count{letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.rv-meta .state{padding:2px 8px;border-radius:999px;border:1px solid currentColor;font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.rv-meta .state.ok{color:var(--brass)}
+.rv-meta .state.lost{color:var(--loss)}
+.rv-meta .state.maybe{color:var(--ink-dim)}
+.rv-meta .jump{margin-left:auto;appearance:none;border:0;background:none;color:var(--brass);font:600 13px var(--font-ui);cursor:pointer;padding:4px 0}
+.rv-body{min-height:64px;display:grid;gap:6px;align-content:start}
+.rv-text{margin:0;font-size:15px;line-height:1.4}
+.rv-sub{margin:0;font-size:13px;line-height:1.4;color:var(--ink-dim)}
+.rv-row{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:baseline;font-size:14.5px;line-height:1.35}
+.tag{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;white-space:nowrap}
+.tag.you{color:var(--felt-deep);background:var(--ink)}
+.tag.win{color:#1a1408;background:var(--brass)}
+.rv-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.rv-nav button{
+  appearance:none;height:46px;border-radius:12px;border:1px solid rgba(216,180,106,.35);background:rgba(0,0,0,.2);color:var(--ink);
+  font:600 14px/1 var(--font-ui);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.rv-nav button:active{background:rgba(216,180,106,.14)}
+.rv-nav button:disabled{opacity:.35}
+.rv-nav button.go{background:rgba(216,180,106,.16)}
+/* outlines on the table: white for your move, brass for the winning move */
+.card.mark-you::after,.card.mark-win::after{content:"";position:absolute;inset:-3px;border-radius:calc(var(--cw)*.13);pointer-events:none;z-index:2}
+.card.mark-you::after{border:2.5px solid var(--ink);box-shadow:0 0 10px rgba(243,239,228,.5)}
+.card.mark-win::after{border:2.5px solid var(--brass);box-shadow:0 0 12px rgba(216,180,106,.8)}
+.card.mark-you.mark-win::after{border-style:dashed}
+.slot.mark-you{border-color:var(--ink);border-width:2.5px}
+.slot.mark-win{border-color:var(--brass);border-width:2.5px}
+.opt.review-opt{border-color:rgba(216,180,106,.45)}
+
 @media (prefers-reduced-motion:reduce){
   .card,.inner{transition:none!important}
   .card.nope,.card.hint .face,.slot.hint,.panel,.verdict .chip i{animation:none!important}
@@ -174,6 +213,28 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     <button id="btnHint" type="button"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>Hint</button>
     <button id="btnUndo" type="button"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
   </nav>
+  <section class="review" id="review" aria-label="Game review" hidden>
+    <div class="rv-head">
+      <div class="seg" role="tablist">
+        <button id="rvYou" type="button" role="tab" aria-selected="true">Your game</button>
+        <button id="rvWin" type="button" role="tab" aria-selected="false">Winning line</button>
+      </div>
+      <button class="rv-icon" id="rvReplay" type="button">Replay deal</button>
+      <button class="rv-icon" id="rvClose" type="button" aria-label="Close review">✕</button>
+    </div>
+    <div class="rv-meta">
+      <span class="count" id="rvCount"></span>
+      <span class="state" id="rvState" hidden></span>
+      <button class="jump" id="rvJump" type="button" hidden>Turning point</button>
+    </div>
+    <div class="rv-body" id="rvBody" aria-live="polite"></div>
+    <div class="rv-nav">
+      <button id="rvStart" type="button" aria-label="Back to the deal">⏮︎</button>
+      <button id="rvPrev" type="button">‹ Back</button>
+      <button id="rvNext" type="button" class="go">Next ›</button>
+      <button id="rvPlay" type="button">Play</button>
+    </div>
+  </section>
 </div>
 
 <div class="overlay sheet" id="sheet" hidden>
@@ -183,6 +244,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     <button class="opt" id="optD1" type="button"><b>Deal · Draw 1</b><span>Turn one card at a time. Most games are winnable.</span></button>
     <button class="opt" id="optD3" type="button"><b>Deal · Draw 3</b><span>The classic rules. Harder, and more satisfying.</span></button>
     <button class="opt" id="optReplay" type="button"><b id="replayLabel">Replay this deal</b><span>Start the same cards over from the beginning.</span></button>
+    <button class="opt review-opt" id="optReview" type="button"><b>Review this game</b><span>Check whether it can still be won, and where it went wrong if not.</span></button>
     <button class="opt plain" id="optClose" type="button">Keep playing</button>
   </div>
 </div>
@@ -195,6 +257,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
       <span class="chip"><i id="verdictMark">♠&#xFE0E;</i><span id="verdictChip">Checking</span></span>
       <p id="verdictText"></p>
     </div>
+    <button class="opt review-opt" id="stReview" type="button"><b>Review this game</b><span>Find the move that lost it, and see the winning line from there.</span></button>
     <div class="pair">
       <button class="opt" id="stRestart" type="button"><b>Restart this deal</b></button>
       <button class="opt" id="stNew" type="button"><b>New deal</b></button>
@@ -235,14 +298,16 @@ const info = id => ({suit: id[0], rank: +id.slice(1)});
 const isRed = s => s === 'H' || s === 'D';
 const last = a => a[a.length - 1];
 
-let S = null, history = [], G = null, busy = false, auto = false, P = null;
+let S = null, history = [], G = null, busy = false, auto = false, P = null, R = null;
 const els = {};
 const slots = {};
 let stats = {played: 0, won: 0};
 let verdicts = {};
 
 /* ---------- storage ---------- */
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+// While reviewing, S is the position on show; the real game waits in R.real.
+const live = () => R ? R.real : S;
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(live())); }catch(e){} }
 function saveStats(){ try{ localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }catch(e){} }
 function saveVerdicts(){
   const keys = Object.keys(verdicts);
@@ -257,38 +322,23 @@ function load(){
 }
 
 /* ---------- dealing ---------- */
-function rng(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-function deal(seed, draw){
-  const r = rng(seed), deck = [];
-  for(const s of SUITS) for(let k = 1; k <= 13; k++) deck.push(s + k);
-  for(let i = deck.length - 1; i > 0; i--){ const j = Math.floor(r() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
-  const g = {seed, draw, stock: [], waste: [], f: [[],[],[],[]], t: [[],[],[],[],[],[],[]], up: {}, moves: 0, elapsed: 0, started: false, won: false};
-  for(let r2 = 0; r2 < 7; r2++) for(let c = r2; c < 7; c++) g.t[c].push(deck.pop());
-  g.t.forEach(col => g.up[last(col)] = true);
-  g.stock = deck;
-  return g;
-}
+// The deal and the solver's position format live in review.js (RV) so tests share them.
+// g.log records every action, so a finished game can be replayed and reviewed.
+const deal = (seed, draw) => RV.deal(seed, draw);
 
 /* ---------- solver bridge ---------- */
-// Game state -> the solver's position format (see the solver source above).
-const cardNum = id => SUITS.indexOf(id[0]) * 13 + (+id.slice(1)) - 1;
-function toPos(g){
-  const found = [0,0,0,0];
-  g.f.forEach(p => { if(p.length) found[SUITS.indexOf(p[0][0])] = p.length; });
-  return {
-    cols: g.t.map(c => c.map(cardNum)),
-    down: g.t.map(c => c.filter(id => !g.up[id]).length),
-    found,
-    talon: [...g.waste, ...g.stock.slice().reverse()].map(cardNum),
-    w: g.waste.length - 1,
-    draw: g.draw
-  };
-}
+const toPos = g => RV.toPos(g);
 const dealKey = g => g.seed + ':' + g.draw;
 let worker = null, workerUrl = null;
 const WORKER_GLUE = `
 self.onmessage = function (e) {
   var d = e.data, bits = d.tableBits, r;
+  if (d.type === 'review') {
+    var tp = KL.turningPoint(d.positions, { ms: d.ms, perMs: d.perMs, quickMs: d.quickMs, tableBits: d.tableBits, known: d.known,
+      progress: function (p) { self.postMessage({ type: 'progress', tried: p.tried }); } });
+    self.postMessage({ type: 'done', tp: tp });
+    return;
+  }
   for (;;) {
     try { r = KL.solve(d.pos, { maxNodes: Math.floor((1 << bits) * 0.68), tableBits: bits, deadline: Date.now() + d.ms }); break; }
     catch (err) { if (bits <= 18) { r = { result: 'unknown', nodes: 0 }; break; } bits -= 2; }
@@ -349,11 +399,14 @@ function canTab(id, ti){
 const sameRef = (a, b) => a.k === b.k && a.i === b.i;
 
 /* ---------- history ---------- */
-function snap(){ return JSON.stringify({stock:S.stock, waste:S.waste, f:S.f, t:S.t, up:S.up, moves:S.moves}); }
+function snap(){ return JSON.stringify({stock:S.stock, waste:S.waste, f:S.f, t:S.t, up:S.up, moves:S.moves, n: S.log ? S.log.length : null}); }
 function pushHistory(){ history.push(snap()); if(history.length > 400) history.shift(); }
 function undo(){
-  if(busy || !history.length) return;
-  Object.assign(S, JSON.parse(history.pop()));
+  if(busy || R || !history.length) return;
+  const prev = JSON.parse(history.pop()), n = prev.n;
+  delete prev.n;
+  Object.assign(S, prev);
+  if(S.log && n != null) S.log.length = n;
   S.moves++; S.dismissed = false;
   render(); save(); hud(); scheduleStuck();
 }
@@ -365,6 +418,7 @@ function doMove(fromRef, index, toRef){
   const from = getPile(fromRef), to = getPile(toRef);
   const ids = from.splice(index);
   to.push(...ids);
+  if(S.log) S.log.push({f: {...fromRef}, i: index, t: {...toRef}});
   if(fromRef.k === 't' && from.length && !S.up[last(from)]) S.up[last(from)] = true;
   S.moves++; startClock();
   render(ids); save(); hud();
@@ -373,12 +427,12 @@ function doMove(fromRef, index, toRef){
 function draw(){
   if(busy) return;
   if(S.stock.length){
-    pushHistory();
+    pushHistory(); if(S.log) S.log.push({d: 1});
     const n = Math.min(S.draw, S.stock.length), moved = [];
     for(let i = 0; i < n; i++){ const id = S.stock.pop(); S.up[id] = true; S.waste.push(id); moved.push(id); }
     S.moves++; startClock(); render(moved);
   } else if(S.waste.length){
-    pushHistory();
+    pushHistory(); if(S.log) S.log.push({d: 1});
     S.stock = S.waste.reverse(); S.waste = [];
     S.stock.forEach(id => S.up[id] = false);
     S.moves++; render();
@@ -456,6 +510,7 @@ function isStuck(){
   try{ return !KL.hasUsefulMove(toPos(S)); }catch(e){ return false; }
 }
 function checkStuck(){
+  if(R) return;
   if(busy || P){ scheduleStuck(); return; }
   if(!isStuck()) return;
   if(S.dismissed) return;
@@ -488,6 +543,7 @@ function showVerdict(){
   $('stRestart').classList.toggle('lead', v === 'win');
   $('stNew').classList.toggle('lead', v === 'lose');
   $('stUndo').disabled = !history.length;
+  $('stReview').hidden = v === 'lose' || !canReview();
 }
 
 /* ---------- hints ---------- */
@@ -617,7 +673,7 @@ function dealAnim(){
 
 /* ---------- pointer: tap or drag ---------- */
 board.addEventListener('pointerdown', e => {
-  if(busy || (e.button && e.button !== 0)) return;
+  if(busy || R || (e.button && e.button !== 0)) return;
   const cardEl = e.target.closest('.card'), slotEl = e.target.closest('.slot');
   P = {x: e.clientX, y: e.clientY, id: cardEl && cardEl.dataset.id, slot: slotEl && slotEl.dataset.slot, drag: false};
   if(P.id){
@@ -678,6 +734,227 @@ function drop(p){
   render(p.ids);
 }
 
+/* ---------- game review ---------- */
+// Two tracks through the game. "you" is what you played: states[0..n]. "win" shares
+// your moves up to the turning point k, then follows a winning line from there.
+// The view shows a position and describes the move made from it, with that move's
+// cards outlined on the table.
+const REVIEW_KEY = 'klondike-review-v1';
+const canReview = () => { const g = live(); return !!(g && g.log && g.log.length && !g.won); };
+function startReview(from){
+  const real = live();
+  if(!canReview()) return;
+  const states = RV.replay(real.seed, real.draw, real.log);
+  if(!states || !RV.sameTable(states[states.length - 1], real)){ toast("Couldn't replay this game"); return; }
+  $('stuck').hidden = true; $('sheet').hidden = true;
+  const n = states.length - 1;
+  R = {real, from, states, n, stuck: isStuckState(real), track: 'you', i: n, tp: null, line: null, worker: null, tried: 0, playing: null};
+  $('review').hidden = false; document.querySelector('.tools').hidden = true;
+  const k = dealKey(real), logStr = JSON.stringify(real.log);
+  let cached = null;
+  try{ const c = JSON.parse(localStorage.getItem(REVIEW_KEY)); if(c && c.key === k && c.log === logStr) cached = c.tp; }catch(e){}
+  if(cached) finishReview(cached, false);
+  else runReview(states, k, logStr, real);
+  show(true);
+}
+function runReview(states, k, logStr, real){
+  const known = {}, v = verdicts[k];
+  if(v === 'win' || v === 'lose') known[0] = v;
+  if(R.stuck) known[R.n] = 'lose';
+  const positions = states.map(toPos);
+  const done = tp => {
+    if(!R) return;
+    R.worker = null;
+    try{ localStorage.setItem(REVIEW_KEY, JSON.stringify({key: k, log: logStr, tp})); }catch(e){}
+    finishReview(tp, true);
+  };
+  const job = {type: 'review', positions, known, ms: 90000, perMs: 25000, quickMs: 3000, tableBits: 21};
+  try{
+    if(!workerUrl) workerUrl = URL.createObjectURL(new Blob([$('klsrc').textContent + WORKER_GLUE], {type: 'text/javascript'}));
+    const w = new Worker(workerUrl);
+    R.worker = w;
+    w.onmessage = e => {
+      if(!R || R.worker !== w) return;
+      if(e.data.type === 'progress'){ R.tried = e.data.tried; show(); }
+      else { w.terminate(); done(e.data.tp); }
+    };
+    w.onerror = ev => { ev.preventDefault && ev.preventDefault(); if(R && R.worker === w){ R.worker = null; here(); } };
+    w.postMessage(job);
+  }catch(e){ here(); }
+  // Without background workers: a shorter search on the page itself.
+  function here(){ setTimeout(() => { if(!R) return; let tp; try{ tp = KL.turningPoint(positions, {...job, ms: 8000, quickMs: 1000, perMs: 4000}); }catch(e){ tp = {k: -1, lost: R.n + 1, exact: false}; } done(tp); }, 50); }
+}
+function isStuckState(g){ try{ return !KL.hasUsefulMove(toPos(g)); }catch(e){ return false; } }
+function finishReview(tp, jump){
+  R.tp = tp;
+  if(tp.k >= 0 && tp.path){
+    R.line = RV.lineFrom(R.states[tp.k], tp.path);
+    if(!R.line) R.tp = {...tp, k: -1};
+  }
+  if(R.tp.k >= 0){ R.track = 'win'; R.i = R.tp.k; }
+  show(true);
+}
+function endReview(){
+  if(!R) return;
+  stopPlay();
+  if(R.worker){ R.worker.terminate(); R.worker = null; }
+  const from = R.from;
+  S = R.real; R = null;
+  clearMarks();
+  $('review').hidden = true; document.querySelector('.tools').hidden = false;
+  board.classList.add('still'); render(); void board.offsetWidth; board.classList.remove('still');
+  hud();
+  if(from === 'stuck' && isStuck()) openStuck();
+}
+
+// Positions and moves on the current track.
+function trackLen(){ return R.track === 'win' && R.line ? R.tp.k + R.line.steps.length : R.n; }
+function stateAt(i){ return R.track === 'win' && R.line && i > R.tp.k ? R.line.states[i - R.tp.k] : R.states[i]; }
+function moveAt(i){
+  // {kind:'you', act} for one of your moves, {kind:'win', step} for the winning line.
+  if(R.track === 'win' && R.line && i >= R.tp.k) return i - R.tp.k < R.line.steps.length ? {kind: 'win', step: R.line.steps[i - R.tp.k]} : null;
+  return i < R.n ? {kind: 'you', act: R.real.log[i]} : null;
+}
+function step(d){ stopPlay(); go(R.i + d); }
+function go(i, still){
+  if(!R) return;
+  const prevI = R.i;
+  i = Math.max(0, Math.min(trackLen(), i));
+  const boost = i === prevI + 1 ? movedIds(prevI) : null;
+  R.i = i;
+  show(still || Math.abs(i - prevI) > 1, boost);
+}
+function movedIds(i){
+  const m = moveAt(i); if(!m) return null;
+  const g = stateAt(i);
+  if(m.kind === 'you') return RV.cardsOf(g, m.act);
+  const a = m.step.acts[m.step.taps];
+  const h = RV.clone(g); for(let t = 0; t < m.step.taps; t++) RV.apply(h, m.step.acts[t]);
+  return a && !a.d ? RV.cardsOf(h, a) : null;
+}
+function clearMarks(){
+  board.querySelectorAll('.mark-you,.mark-win').forEach(el => el.classList.remove('mark-you', 'mark-win'));
+}
+// Outline the cards a move picks up and where they land.
+function markAct(g, a, cls){
+  if(a.d){ const el = g.stock.length ? els[last(g.stock)] : slots.s; el.classList.add(cls); return; }
+  RV.cardsOf(g, a).forEach(id => els[id].classList.add(cls));
+  const dst = RV.pile(g, a.t);
+  (dst.length ? els[last(dst)] : slots[a.t.k + a.t.i]).classList.add(cls);
+}
+function markStep(g, st, cls){
+  if(st.finish) return;
+  if(st.taps){ (g.stock.length ? els[last(g.stock)] : slots.s).classList.add(cls); const dst = st.acts[st.taps].t; const p = RV.pile(g, dst); (p.length ? els[last(p)] : slots[dst.k + dst.i]).classList.add(cls); return; }
+  markAct(g, st.acts[0], cls);
+}
+const el = (tag, cls, text) => { const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; };
+function row(tagCls, tagText, text){ const r = el('div', 'rv-row'); r.append(el('span', 'tag ' + tagCls, tagText), el('span', '', text)); return r; }
+
+function show(still, boost){
+  const tp = R.tp, i = R.i, n = R.n, k = tp ? tp.k : -1;
+  const g = stateAt(i);
+  S = {...RV.clone(g), seed: R.real.seed, draw: R.real.draw, moves: i, elapsed: R.real.elapsed, started: true, won: false};
+  if(still){ board.classList.add('still'); render(); void board.offsetWidth; board.classList.remove('still'); }
+  else render(boost);
+  hud();
+  clearMarks();
+
+  // tabs
+  const hasLine = !!(tp && R.line);
+  $('rvWin').disabled = !hasLine;
+  $('rvYou').setAttribute('aria-selected', R.track === 'you');
+  $('rvWin').setAttribute('aria-selected', R.track === 'win');
+  $('rvJump').hidden = !hasLine || i === k;
+
+  // where we are, and whether the deal could still be won from here
+  const len = trackLen(), onLine = R.track === 'win' && hasLine && i > k;
+  $('rvCount').textContent = onLine ? `Winning line · step ${i - k} of ${len - k}` : i < n ? `Move ${i + 1} of ${n}` : `End · ${n} moves`;
+  const st = $('rvState');
+  st.hidden = !tp;
+  if(tp){
+    let cls = 'maybe', txt = 'Not sure';
+    if(onLine || (k >= 0 && i <= k)){ cls = 'ok'; txt = 'Winnable'; }
+    else if(i >= tp.lost){ cls = 'lost'; txt = 'Lost'; }
+    st.className = 'state ' + cls; st.textContent = txt;
+  }
+
+  // what happens next
+  const body = $('rvBody'); body.replaceChildren();
+  const m = moveAt(i);
+  if(!tp){
+    body.append(el('p', 'rv-text', 'Finding the move where this game slipped away…'),
+      el('p', 'rv-sub', R.tried ? `Checked ${R.tried} position${R.tried === 1 ? '' : 's'} so far. You can step through your game meanwhile.` : 'This usually takes a few seconds, sometimes up to a minute and a half.'));
+    if(m) markAct(g, m.act, 'mark-you'), body.append(row('you', 'You', RV.actText(g, m.act)));
+  } else if(hasLine && i === k){
+    // The turning point: your move and the winning move side by side.
+    const yours = i < n ? RV.actText(g, R.real.log[i]) : null;
+    const win = R.line.steps.length ? RV.stepText(R.line.steps[0]) : 'Nothing: the game is won from here';
+    if(i < n) markAct(g, R.real.log[i], 'mark-you');
+    if(R.line.steps.length) markStep(g, R.line.steps[0], 'mark-win');
+    if(i === n){
+      body.append(el('p', 'rv-text', 'You can still win this one. Here is the way through:'), row('win', 'Next', win));
+    } else {
+      body.append(row('you', 'You', yours), row('win', 'Win', win));
+      body.append(el('p', 'rv-sub', tp.exact
+        ? 'Until here the deal could still be won; after your move it couldn’t. The winning line knows where every card is, face-down ones included.'
+        : `The last point a win could be confirmed. By move ${Math.min(tp.lost, n)} it was certainly lost. The winning line knows where every card is.`));
+    }
+  } else if(m && m.kind === 'win'){
+    markStep(g, m.step, 'mark-win');
+    body.append(row('win', 'Win', RV.stepText(m.step)));
+  } else if(m){
+    markAct(g, m.act, 'mark-you');
+    body.append(row('you', 'You', RV.actText(g, m.act)));
+    if(hasLine && i < k && i === 0) body.append(el('p', 'rv-sub', `Your first ${k} moves kept the deal winnable. Jump to the turning point to see where it went wrong.`));
+  } else if(R.track === 'win' && hasLine){
+    body.append(el('p', 'rv-text', 'Won. Every card is on the foundations.'), el('p', 'rv-sub', 'Replay the deal to try it yourself.'));
+  } else {
+    body.append(el('p', 'rv-text', R.stuck ? 'This is where you ran out of useful moves.' : 'This is where your game is now.'));
+    if(hasLine) body.append(el('p', 'rv-sub', 'Switch to Winning line to see how it could have gone.'));
+  }
+  if(tp && k < 0 && i === n){
+    body.replaceChildren(el('p', 'rv-text', tp.lost === 0
+      ? 'This deal couldn’t be won from the start, even knowing where every card was. Nothing you did lost it.'
+      : 'This deal was too complex to check all the way through, so there’s no winning line to show.'));
+    if(tp.lost > 0 && tp.lost <= n) body.append(el('p', 'rv-sub', `It was certainly lost by move ${tp.lost}.`));
+  }
+
+  $('rvStart').disabled = i === 0;
+  $('rvPrev').disabled = i === 0;
+  $('rvNext').disabled = i >= len;
+  $('rvPlay').disabled = i >= len && !R.playing;
+  $('rvPlay').textContent = R.playing ? 'Pause' : 'Play';
+}
+function stopPlay(){ if(R && R.playing){ clearInterval(R.playing); R.playing = null; } }
+function togglePlay(){
+  if(R.playing){ stopPlay(); show(true); return; }
+  if(R.i >= trackLen()) return;
+  R.playing = setInterval(() => {
+    if(!R || R.i >= trackLen()){ stopPlay(); if(R) show(true); return; }
+    go(R.i + 1);
+  }, reduced ? 1400 : 1100);
+  show(true);
+}
+function setTrack(t){
+  if(!R || R.track === t || (t === 'win' && !R.line)) return;
+  stopPlay();
+  R.track = t;
+  // Past the turning point the tracks differ, so jump back to it.
+  if(R.tp && R.tp.k >= 0 && R.i > R.tp.k) R.i = R.tp.k;
+  show(true);
+}
+$('rvYou').onclick = () => setTrack('you');
+$('rvWin').onclick = () => setTrack('win');
+$('rvPrev').onclick = () => step(-1);
+$('rvNext').onclick = () => step(1);
+$('rvStart').onclick = () => { stopPlay(); go(0, true); };
+$('rvPlay').onclick = togglePlay;
+$('rvJump').onclick = () => { stopPlay(); go(R.tp.k, true); };
+$('rvClose').onclick = endReview;
+$('rvReplay').onclick = () => { const g = R.real; endReview(); newGame(g.draw, g.seed); };
+$('stReview').onclick = () => startReview('stuck');
+$('optReview').onclick = () => startReview('menu');
+
 /* ---------- menus ---------- */
 function newGame(draw, seed){
   S = deal(seed ?? (Math.floor(Math.random() * 900000) + 100000), draw);
@@ -691,6 +968,7 @@ function openSheet(){
   $('replayLabel').textContent = `Replay deal ${S.seed}`;
   $('optD1').classList.toggle('current', S.draw === 1);
   $('optD3').classList.toggle('current', S.draw === 3);
+  $('optReview').hidden = !canReview();
   $('sheet').hidden = false;
 }
 const closeSheet = () => $('sheet').hidden = true;
@@ -709,13 +987,19 @@ $('stClose').onclick = closeStuck;
 $('stuck').addEventListener('click', e => { if(e.target.id === 'stuck') closeStuck(); });
 $('btnAgain').onclick = () => newGame(S.draw);
 document.addEventListener('keydown', e => {
+  if(R){
+    if(e.key === 'ArrowRight') step(1);
+    else if(e.key === 'ArrowLeft') step(-1);
+    else if(e.key === 'Escape') endReview();
+    return;
+  }
   if(e.key === 'Escape'){ closeSheet(); closeStuck(); }
   if((e.ctrlKey || e.metaKey) && e.key === 'z'){ e.preventDefault(); undo(); }
 });
 
 /* ---------- clock ---------- */
 setInterval(() => {
-  if(S && S.started && !S.won && !document.hidden && $('sheet').hidden && $('stuck').hidden){
+  if(S && !R && S.started && !S.won && !document.hidden && $('sheet').hidden && $('stuck').hidden){
     S.elapsed++; $('time').textContent = fmt(S.elapsed);
     if(S.elapsed % 5 === 0) save();
   }
@@ -747,7 +1031,7 @@ function start(data){
     requestAnimationFrame(() => board.classList.remove('still'));
   }).observe(board);
 }
-try{ window.claude?.hot?.snapshot?.(() => ({S, history})); }catch(e){}
+try{ window.claude?.hot?.snapshot?.(() => ({S: live(), history})); }catch(e){}
 window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
 })();
 </script>

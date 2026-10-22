@@ -172,6 +172,45 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 }
 .toast.off{opacity:0}
 
+/* game review: replaces the toolbar while you step through a finished game */
+.review{display:grid;gap:8px;padding-block:8px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(216,180,106,.22)}
+.rv-head{display:flex;align-items:center;gap:8px}
+.seg{flex:1;display:grid;grid-template-columns:1fr 1fr;padding:3px;border-radius:11px;background:rgba(0,0,0,.28);border:1px solid rgba(243,239,228,.1)}
+.seg button{appearance:none;border:0;background:none;color:var(--ink-dim);font:600 13px/1 var(--font-ui);height:34px;border-radius:8px;cursor:pointer}
+.seg button[aria-selected="true"]{background:rgba(216,180,106,.18);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(216,180,106,.5)}
+.seg button:disabled{opacity:.35;cursor:default}
+.rv-icon{appearance:none;height:40px;min-width:40px;padding-inline:10px;border-radius:10px;border:1px solid rgba(243,239,228,.14);background:none;color:var(--ink);font:600 13px var(--font-ui);cursor:pointer}
+.rv-meta{display:flex;align-items:center;gap:8px;min-height:24px;font-size:12px;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+.rv-meta .count{letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.rv-meta .state{padding:2px 8px;border-radius:999px;border:1px solid currentColor;font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.rv-meta .state.ok{color:var(--brass)}
+.rv-meta .state.lost{color:var(--loss)}
+.rv-meta .state.maybe{color:var(--ink-dim)}
+.rv-meta .jump{margin-left:auto;appearance:none;border:0;background:none;color:var(--brass);font:600 13px var(--font-ui);cursor:pointer;padding:4px 0}
+.rv-body{min-height:64px;display:grid;gap:6px;align-content:start}
+.rv-text{margin:0;font-size:15px;line-height:1.4}
+.rv-sub{margin:0;font-size:13px;line-height:1.4;color:var(--ink-dim)}
+.rv-row{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:baseline;font-size:14.5px;line-height:1.35}
+.tag{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;white-space:nowrap}
+.tag.you{color:var(--felt-deep);background:var(--ink)}
+.tag.win{color:#1a1408;background:var(--brass)}
+.rv-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.rv-nav button{
+  appearance:none;height:46px;border-radius:12px;border:1px solid rgba(216,180,106,.35);background:rgba(0,0,0,.2);color:var(--ink);
+  font:600 14px/1 var(--font-ui);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.rv-nav button:active{background:rgba(216,180,106,.14)}
+.rv-nav button:disabled{opacity:.35}
+.rv-nav button.go{background:rgba(216,180,106,.16)}
+/* outlines on the table: white for your move, brass for the winning move */
+.card.mark-you::after,.card.mark-win::after{content:"";position:absolute;inset:-3px;border-radius:calc(var(--cw)*.13);pointer-events:none;z-index:2}
+.card.mark-you::after{border:2.5px solid var(--ink);box-shadow:0 0 10px rgba(243,239,228,.5)}
+.card.mark-win::after{border:2.5px solid var(--brass);box-shadow:0 0 12px rgba(216,180,106,.8)}
+.card.mark-you.mark-win::after{border-style:dashed}
+.slot.mark-you{border-color:var(--ink);border-width:2.5px}
+.slot.mark-win{border-color:var(--brass);border-width:2.5px}
+.opt.review-opt{border-color:rgba(216,180,106,.45)}
+
 @media (prefers-reduced-motion:reduce){
   .card,.inner{transition:none!important}
   .card.nope,.card.hint .face,.slot.hint,.panel,.verdict .chip i{animation:none!important}
@@ -194,6 +233,28 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     <button id="btnHint" type="button"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>Hint</button>
     <button id="btnUndo" type="button"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
   </nav>
+  <section class="review" id="review" aria-label="Game review" hidden>
+    <div class="rv-head">
+      <div class="seg" role="tablist">
+        <button id="rvYou" type="button" role="tab" aria-selected="true">Your game</button>
+        <button id="rvWin" type="button" role="tab" aria-selected="false">Winning line</button>
+      </div>
+      <button class="rv-icon" id="rvReplay" type="button">Replay deal</button>
+      <button class="rv-icon" id="rvClose" type="button" aria-label="Close review">✕</button>
+    </div>
+    <div class="rv-meta">
+      <span class="count" id="rvCount"></span>
+      <span class="state" id="rvState" hidden></span>
+      <button class="jump" id="rvJump" type="button" hidden>Turning point</button>
+    </div>
+    <div class="rv-body" id="rvBody" aria-live="polite"></div>
+    <div class="rv-nav">
+      <button id="rvStart" type="button" aria-label="Back to the deal">⏮︎</button>
+      <button id="rvPrev" type="button">‹ Back</button>
+      <button id="rvNext" type="button" class="go">Next ›</button>
+      <button id="rvPlay" type="button">Play</button>
+    </div>
+  </section>
 </div>
 
 <div class="overlay sheet" id="sheet" hidden>
@@ -203,6 +264,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
     <button class="opt" id="optD1" type="button"><b>Deal · Draw 1</b><span>Turn one card at a time. Most games are winnable.</span></button>
     <button class="opt" id="optD3" type="button"><b>Deal · Draw 3</b><span>The classic rules. Harder, and more satisfying.</span></button>
     <button class="opt" id="optReplay" type="button"><b id="replayLabel">Replay this deal</b><span>Start the same cards over from the beginning.</span></button>
+    <button class="opt review-opt" id="optReview" type="button"><b>Review this game</b><span>Check whether it can still be won, and where it went wrong if not.</span></button>
     <button class="opt plain" id="optClose" type="button">Keep playing</button>
   </div>
 </div>
@@ -215,6 +277,7 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
       <span class="chip"><i id="verdictMark">♠&#xFE0E;</i><span id="verdictChip">Checking</span></span>
       <p id="verdictText"></p>
     </div>
+    <button class="opt review-opt" id="stReview" type="button"><b>Review this game</b><span>Find the move that lost it, and see the winning line from there.</span></button>
     <div class="pair">
       <button class="opt" id="stRestart" type="button"><b>Restart this deal</b></button>
       <button class="opt" id="stNew" type="button"><b>New deal</b></button>
@@ -624,10 +687,313 @@ var KL = (function () {
     return false;
   }
 
-  return { solve: solve, hasUsefulMove: hasUsefulMove };
+  // ---------- turning point (for reviewing a finished game) ----------
+  // positions[i] is the position after the player's i-th move (positions[0] is the deal).
+  // Finds the last position from which the deal could still be won, seeing every card.
+  // Each position follows from the one before by a legal move, so once a position is
+  // lost every later one is too. That makes a binary search work: about log2(n) solves.
+  // Returns { k, lost, exact, path, tried }:
+  //   k     last position proven winnable (-1 if none), with path = a winning line from it
+  //   lost  first position proven lost (positions.length if none)
+  //   exact true when lost === k + 1, so the move from k to k+1 is the one that lost it
+  function turningPoint(positions, opts) {
+    opts = opts || {};
+    var n = positions.length - 1, end = Date.now() + (opts.ms || 60000);
+    var per = opts.perMs || 20000, bits = opts.tableBits || 21;
+    var status = {}, paths = {}, tried = 0, i;
+    if (opts.known) for (i in opts.known) status[i] = opts.known[i];
+    function check(i, force) {
+      if (status[i] && !(force && status[i] === 'win' && !paths[i])) return status[i];
+      var left = end - Date.now();
+      if (left <= 0 && !force) return 'unknown';
+      var r = { result: 'unknown' };
+      for (var b = bits; b >= 17; b -= 2) {
+        try {
+          r = solve(positions[i], { trace: true, tableBits: b, maxNodes: Math.floor((1 << b) * 0.68), deadline: Date.now() + Math.max(2000, Math.min(per, left)) });
+          break;
+        } catch (e) { r = { result: 'unknown' }; }
+      }
+      tried++;
+      if (r.result !== 'unknown' || !status[i]) status[i] = r.result;
+      if (r.path) paths[i] = r.path;
+      if (opts.progress) opts.progress({ tried: tried, index: i, result: r.result });
+      return status[i];
+    }
+    var lo = -1, hi = n + 1;
+    function settle(i) { var r = check(i); if (r === 'win' && i > lo) lo = i; else if (r === 'lose' && i < hi) hi = i; }
+    for (i in status) { if (status[i] === 'win' && +i > lo) lo = +i; if (status[i] === 'lose' && +i < hi) hi = +i; }
+    // Most positions settle in well under a second. A first pass gives each a short
+    // time; a second pass spends longer only on the ones still in the way.
+    var full = per;
+    for (var pass = 0; pass < 2 && hi - lo > 1; pass++) {
+      per = pass ? full : Math.min(full, opts.quickMs || 3000);
+      if (pass) for (i in status) if (status[i] === 'unknown' && +i >= lo && +i <= hi) delete status[i];
+      // The end of the game first: if it can still be won, nothing has gone wrong yet.
+      if (hi > n && !status[n]) settle(n);
+      if (lo < 0 && hi > 0 && !status[0]) settle(0);
+      while (hi - lo > 1 && Date.now() < end) {
+        // Middle of the open range; skip positions the solver couldn't settle, leaning
+        // later (later positions have fewer cards in play and solve faster).
+        var ideal = (lo + hi) / 2, best = -1, bd = Infinity;
+        for (i = Math.max(0, lo + 1); i < Math.min(hi, n + 1); i++) {
+          if (status[i]) continue;
+          var d = Math.abs(i - ideal) - (i > ideal ? 0.25 : 0);
+          if (d < bd) { bd = d; best = i; }
+        }
+        if (best < 0) break;
+        settle(best);
+      }
+    }
+    per = full;
+    // A winnable start known from an earlier check has no line yet: solve it once more.
+    if (lo >= 0 && !paths[lo]) { check(lo, true); if (!paths[lo]) lo = -1; }
+    return { k: lo, lost: hi, exact: lo >= 0 && hi === lo + 1, path: lo >= 0 ? paths[lo] : null, tried: tried };
+  }
+
+  return { solve: solve, hasUsefulMove: hasUsefulMove, turningPoint: turningPoint };
 })();
 
 if (typeof module !== 'undefined') module.exports = KL;
+
+// Game review: replays a logged game, turns solver lines into game moves, and
+// describes moves in plain words. Works on the game's own state format (card ids like
+// "H7", piles stock/waste/f/t, an `up` map), so it runs in the page and in Node tests.
+//
+// A logged action is either { d: 1 } (tap the stock: draw, or turn the waste over)
+// or { f: ref, i: index, t: ref } (move the cards from `index` up in pile `f` to pile `t`),
+// where a ref is { k: 's' | 'w' | 'f' | 't', i: pile number }.
+
+var RV = (function () {
+  var SUITS = ['S', 'H', 'D', 'C'];
+  var SYM = { S: '♠︎', H: '♥︎', D: '♦︎', C: '♣︎' };
+  var RANKS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+  function info(id) { return { suit: id[0], rank: +id.slice(1) }; }
+  function isRed(s) { return s === 'H' || s === 'D'; }
+  function last(a) { return a[a.length - 1]; }
+  function name(id) { var c = info(id); return RANKS[c.rank] + SYM[c.suit]; }
+  function clone(g) { return JSON.parse(JSON.stringify(g)); }
+
+  function rng(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function deal(seed, draw) {
+    var r = rng(seed), deck = [], i, s, k;
+    for (s = 0; s < 4; s++) for (k = 1; k <= 13; k++) deck.push(SUITS[s] + k);
+    for (i = deck.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), x = deck[i]; deck[i] = deck[j]; deck[j] = x; }
+    var g = { seed: seed, draw: draw, stock: [], waste: [], f: [[], [], [], []], t: [[], [], [], [], [], [], []], up: {}, moves: 0, elapsed: 0, started: false, won: false, log: [] };
+    for (var r2 = 0; r2 < 7; r2++) for (var c = r2; c < 7; c++) g.t[c].push(deck.pop());
+    g.t.forEach(function (col) { g.up[last(col)] = true; });
+    g.stock = deck;
+    return g;
+  }
+
+  // Game state -> the solver's position format (see solver.js).
+  function cardNum(id) { return SUITS.indexOf(id[0]) * 13 + (+id.slice(1)) - 1; }
+  function idOf(c) { return SUITS[(c / 13) | 0] + (c % 13 + 1); }
+  function toPos(g) {
+    var found = [0, 0, 0, 0];
+    g.f.forEach(function (p) { if (p.length) found[SUITS.indexOf(p[0][0])] = p.length; });
+    return {
+      cols: g.t.map(function (c) { return c.map(cardNum); }),
+      down: g.t.map(function (c) { return c.filter(function (id) { return !g.up[id]; }).length; }),
+      found: found,
+      talon: g.waste.concat(g.stock.slice().reverse()).map(cardNum),
+      w: g.waste.length - 1,
+      draw: g.draw
+    };
+  }
+
+  function pile(g, ref) { return ref.k === 's' ? g.stock : ref.k === 'w' ? g.waste : ref.k === 'f' ? g.f[ref.i] : g.t[ref.i]; }
+  function canFound(g, id, fi) {
+    var p = g.f[fi], c = info(id);
+    if (!p.length) return c.rank === 1;
+    var top = info(last(p));
+    return top.suit === c.suit && c.rank === top.rank + 1;
+  }
+  function canTab(g, id, ti) {
+    var col = g.t[ti], c = info(id);
+    if (!col.length) return c.rank === 13;
+    var topId = last(col);
+    if (!g.up[topId]) return false;
+    var top = info(topId);
+    return isRed(top.suit) !== isRed(c.suit) && c.rank === top.rank - 1;
+  }
+  // Which foundation pile a card goes to: the one already holding its suit, else the
+  // first empty one (the same pile a tap would pick).
+  // Safe to put up: nothing could ever need to go on top of it again (an ace or two,
+  // or both foundations of the other colour already hold the card one lower).
+  function safe(g, id) {
+    var c = info(id); if (c.rank <= 2) return true;
+    var other = isRed(c.suit) ? ['S', 'C'] : ['H', 'D'], ok = 0;
+    g.f.forEach(function (p) { if (p.length && other.indexOf(p[0][0]) >= 0 && p.length >= c.rank - 1) ok++; });
+    return ok === 2;
+  }
+  function foundFor(g, id) { for (var f = 0; f < 4; f++) if (canFound(g, id, f)) return f; return -1; }
+
+  function legal(g, a) {
+    if (a.d) return g.stock.length > 0 || g.waste.length > 0;
+    var from = pile(g, a.f);
+    if (!from || a.i < 0 || a.i >= from.length) return false;
+    var id = from[a.i];
+    if (!g.up[id]) return false;
+    if ((a.f.k === 'w' || a.f.k === 'f' || a.t.k === 'f') && a.i !== from.length - 1) return false;
+    if (a.f.k === 's' || a.t.k === 's' || a.t.k === 'w') return false;
+    if (a.f.k === a.t.k && a.f.i === a.t.i) return false;
+    return a.t.k === 'f' ? canFound(g, id, a.t.i) : canTab(g, id, a.t.i);
+  }
+  // Applies an action in place, exactly as the game does. Returns what changed.
+  function apply(g, a) {
+    if (a.d) {
+      if (g.stock.length) {
+        var n = Math.min(g.draw, g.stock.length), moved = [];
+        for (var i = 0; i < n; i++) { var id = g.stock.pop(); g.up[id] = true; g.waste.push(id); moved.push(id); }
+        g.moves++;
+        return { ids: moved };
+      }
+      g.stock = g.waste.reverse(); g.waste = [];
+      g.stock.forEach(function (id) { g.up[id] = false; });
+      g.moves++;
+      return { ids: [], recycled: true };
+    }
+    var from = pile(g, a.f), to = pile(g, a.t), ids = from.splice(a.i), flipped = null;
+    Array.prototype.push.apply(to, ids);
+    if (a.f.k === 't' && from.length && !g.up[last(from)]) { flipped = last(from); g.up[flipped] = true; }
+    g.moves++;
+    return { ids: ids, flipped: flipped };
+  }
+
+  // Replays a game's log from its deal. Returns every state along the way
+  // (states[i] is the table after i actions), or null if the log doesn't fit the deal.
+  function replay(seed, draw, log) {
+    var g = deal(seed, draw), states = [strip(g)];
+    for (var i = 0; i < log.length; i++) {
+      if (!legal(g, log[i])) return null;
+      apply(g, log[i]);
+      states.push(strip(g));
+    }
+    return states;
+  }
+  function strip(g) { return clone({ seed: g.seed, draw: g.draw, stock: g.stock, waste: g.waste, f: g.f, t: g.t, up: g.up }); }
+  function sameTable(a, b) {
+    var k = function (g) {
+      var up = Object.keys(g.up).filter(function (id) { return g.up[id]; }).sort();
+      return JSON.stringify([g.stock, g.waste, g.f, g.t, up]);
+    };
+    return k(a) === k(b);
+  }
+
+  // Turns a solver line (from KL.solve with trace) into steps of game actions. Each step
+  // is the stock taps needed to bring a card up (if any) plus one move. When the solver
+  // stops because the rest is a formality, a last step plays everything up.
+  // Returns { steps: [{ acts, before }], states } or null if anything doesn't fit.
+  function lineFrom(start, path) {
+    var g = clone(start), steps = [], states = [strip(g)];
+    function push(acts) {
+      var before = strip(g);
+      for (var i = 0; i < acts.length; i++) { if (!legal(g, acts[i])) return false; apply(g, acts[i]); }
+      steps.push({ acts: acts, before: before, taps: acts.length - 1, ups: 0 });
+      states.push(strip(g));
+      return true;
+    }
+    function bringUp(id, acts) {
+      var guard = 0, L = g.stock.length + g.waste.length;
+      var h = clone(g);
+      while (last(h.waste) !== id && guard++ < 2 * L + 4) { apply(h, { d: 1 }); acts.push({ d: 1 }); }
+      return last(h.waste) === id;
+    }
+    for (var s = 0; s < path.length; s++) {
+      var m = path[s], acts = [], id;
+      if (m.t === 0) {
+        id = last(g.t[m.s]);
+        var up = { f: { k: 't', i: m.s }, i: g.t[m.s].length - 1, t: { k: 'f', i: foundFor(g, id) } };
+        // A card that can go up with no possible downside rides along with the move
+        // before it ("…then 2♣ goes up"), so the line has fewer steps to click through.
+        var prev = steps[steps.length - 1];
+        if (prev && safe(g, id) && legal(g, up)) {
+          apply(g, up); prev.acts.push(up); prev.ups++;
+          states[states.length - 1] = strip(g);
+          continue;
+        }
+        acts.push(up);
+      } else if (m.t === 1 || m.t === 2) {
+        id = idOf(m.c);
+        if (!bringUp(id, acts)) return null;
+        var h = clone(g); for (var q = 0; q < acts.length; q++) apply(h, acts[q]);
+        acts.push({ f: { k: 'w' }, i: h.waste.length - 1, t: m.t === 1 ? { k: 'f', i: foundFor(h, id) } : { k: 't', i: m.d } });
+      } else if (m.t === 3) {
+        acts.push({ f: { k: 't', i: m.s }, i: m.idx, t: { k: 't', i: m.d } });
+      } else if (m.t === 4) {
+        var fi = -1;
+        for (var f = 0; f < 4; f++) if (g.f[f].length && g.f[f][0][0] === SUITS[m.su]) fi = f;
+        if (fi < 0) return null;
+        acts.push({ f: { k: 'f', i: fi }, i: g.f[fi].length - 1, t: { k: 't', i: m.d } });
+      }
+      if (!push(acts)) return null;
+    }
+    // Everything left is face up: play the lowest card that can go up, turning the
+    // stock when nothing on the table can.
+    var fin = [], before = strip(g), total = function () { return g.f.reduce(function (a, p) { return a + p.length; }, 0); };
+    for (var guard = 0; guard < 3000 && total() < 52; guard++) {
+      var best = null;
+      g.t.forEach(function (col, c) {
+        if (!col.length) return;
+        var x = last(col), fi = foundFor(g, x);
+        if (fi >= 0 && (!best || info(x).rank < info(last(pile(g, best.f))).rank)) best = { f: { k: 't', i: c }, i: col.length - 1, t: { k: 'f', i: fi } };
+      });
+      if (!best && g.waste.length) { var w = last(g.waste), wf = foundFor(g, w); if (wf >= 0) best = { f: { k: 'w' }, i: g.waste.length - 1, t: { k: 'f', i: wf } }; }
+      if (!best) { if (!g.stock.length && !g.waste.length) return null; best = { d: 1 }; }
+      apply(g, best); fin.push(best);
+    }
+    if (total() < 52) return null;
+    if (fin.length) { steps.push({ acts: fin, before: before, finish: true }); states.push(strip(g)); }
+    return { steps: steps, states: states };
+  }
+
+  // ---------- words ----------
+  function where(ref) { return ref.k === 'w' ? 'the waste' : ref.k === 'f' ? 'the foundation' : 'column ' + (ref.i + 1); }
+  // Describes a move (not a stock tap) about to be made from state g.
+  function moveText(g, a) {
+    var from = pile(g, a.f), ids = from.slice(a.i), id = ids[0], extra = ids.length - 1;
+    var what = name(id) + (extra ? ' (and the ' + (extra === 1 ? 'card' : extra + ' cards') + ' on it)' : '');
+    var src = a.f.k === 'w' ? ' from the waste' : a.f.k === 'f' ? ' back down from the foundation' : ' from column ' + (a.f.i + 1);
+    var dst;
+    if (a.t.k === 'f') dst = ' up to the foundation';
+    else if (!g.t[a.t.i].length) dst = ' to the empty column ' + (a.t.i + 1);
+    else dst = ' onto ' + name(last(g.t[a.t.i])) + ' in column ' + (a.t.i + 1);
+    return 'Move ' + what + src + dst;
+  }
+  function tapText(g) {
+    if (!g.stock.length) return 'Turn the waste back over to make a new stock';
+    var n = Math.min(g.draw, g.stock.length);
+    return g.draw === 1 ? 'Draw a card from the stock' : n === 3 ? 'Draw 3 from the stock' : 'Draw the last ' + (n === 1 ? 'card' : n + ' cards') + ' from the stock';
+  }
+  function actText(g, a) { return a.d ? tapText(g) : moveText(g, a); }
+  // A step of the winning line: stock taps, a move, then any cards that go up after it.
+  function stepText(step) {
+    if (step.finish) return 'Everything is face up now. Play the rest up to the foundations';
+    var acts = step.acts, taps = step.taps, mv = acts[taps];
+    var h = clone(step.before);
+    for (var i = 0; i < taps; i++) apply(h, acts[i]);
+    var t = moveText(h, mv);
+    if (taps) t = 'Tap the stock ' + (taps === 1 ? 'once' : taps + ' times') + ' to bring up ' + name(last(h.waste)) + ', then m' + t.slice(1).replace(' from the waste', '');
+    if (step.ups) {
+      var names = [], g3 = clone(h); apply(g3, mv);
+      for (var u = taps + 1; u < acts.length; u++) { names.push(name(last(pile(g3, acts[u].f)))); apply(g3, acts[u]); }
+      t += names.length > 4 ? '. Then ' + names.length + ' more cards go up to the foundations'
+        : '. Then ' + list(names) + (names.length === 1 ? ' goes' : ' go') + ' up to the foundation';
+    }
+    return t;
+  }
+  function list(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+  // The cards an action moves, for highlighting. For stock taps: the card it brings up.
+  function cardsOf(g, a) {
+    if (a.d) return [];
+    return pile(g, a.f).slice(a.i);
+  }
+
+  return { deal: deal, toPos: toPos, apply: apply, legal: legal, replay: replay, lineFrom: lineFrom, sameTable: sameTable,
+    actText: actText, stepText: stepText, cardsOf: cardsOf, name: name, pile: pile, clone: clone };
+})();
+
+if (typeof module !== 'undefined') module.exports = RV;
 </script>
 <script>
 (() => {
@@ -645,14 +1011,16 @@ const info = id => ({suit: id[0], rank: +id.slice(1)});
 const isRed = s => s === 'H' || s === 'D';
 const last = a => a[a.length - 1];
 
-let S = null, history = [], G = null, busy = false, auto = false, P = null;
+let S = null, history = [], G = null, busy = false, auto = false, P = null, R = null;
 const els = {};
 const slots = {};
 let stats = {played: 0, won: 0};
 let verdicts = {};
 
 /* ---------- storage ---------- */
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+// While reviewing, S is the position on show; the real game waits in R.real.
+const live = () => R ? R.real : S;
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(live())); }catch(e){} }
 function saveStats(){ try{ localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }catch(e){} }
 function saveVerdicts(){
   const keys = Object.keys(verdicts);
@@ -667,38 +1035,23 @@ function load(){
 }
 
 /* ---------- dealing ---------- */
-function rng(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-function deal(seed, draw){
-  const r = rng(seed), deck = [];
-  for(const s of SUITS) for(let k = 1; k <= 13; k++) deck.push(s + k);
-  for(let i = deck.length - 1; i > 0; i--){ const j = Math.floor(r() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
-  const g = {seed, draw, stock: [], waste: [], f: [[],[],[],[]], t: [[],[],[],[],[],[],[]], up: {}, moves: 0, elapsed: 0, started: false, won: false};
-  for(let r2 = 0; r2 < 7; r2++) for(let c = r2; c < 7; c++) g.t[c].push(deck.pop());
-  g.t.forEach(col => g.up[last(col)] = true);
-  g.stock = deck;
-  return g;
-}
+// The deal and the solver's position format live in review.js (RV) so tests share them.
+// g.log records every action, so a finished game can be replayed and reviewed.
+const deal = (seed, draw) => RV.deal(seed, draw);
 
 /* ---------- solver bridge ---------- */
-// Game state -> the solver's position format (see the solver source above).
-const cardNum = id => SUITS.indexOf(id[0]) * 13 + (+id.slice(1)) - 1;
-function toPos(g){
-  const found = [0,0,0,0];
-  g.f.forEach(p => { if(p.length) found[SUITS.indexOf(p[0][0])] = p.length; });
-  return {
-    cols: g.t.map(c => c.map(cardNum)),
-    down: g.t.map(c => c.filter(id => !g.up[id]).length),
-    found,
-    talon: [...g.waste, ...g.stock.slice().reverse()].map(cardNum),
-    w: g.waste.length - 1,
-    draw: g.draw
-  };
-}
+const toPos = g => RV.toPos(g);
 const dealKey = g => g.seed + ':' + g.draw;
 let worker = null, workerUrl = null;
 const WORKER_GLUE = `
 self.onmessage = function (e) {
   var d = e.data, bits = d.tableBits, r;
+  if (d.type === 'review') {
+    var tp = KL.turningPoint(d.positions, { ms: d.ms, perMs: d.perMs, quickMs: d.quickMs, tableBits: d.tableBits, known: d.known,
+      progress: function (p) { self.postMessage({ type: 'progress', tried: p.tried }); } });
+    self.postMessage({ type: 'done', tp: tp });
+    return;
+  }
   for (;;) {
     try { r = KL.solve(d.pos, { maxNodes: Math.floor((1 << bits) * 0.68), tableBits: bits, deadline: Date.now() + d.ms }); break; }
     catch (err) { if (bits <= 18) { r = { result: 'unknown', nodes: 0 }; break; } bits -= 2; }
@@ -759,11 +1112,14 @@ function canTab(id, ti){
 const sameRef = (a, b) => a.k === b.k && a.i === b.i;
 
 /* ---------- history ---------- */
-function snap(){ return JSON.stringify({stock:S.stock, waste:S.waste, f:S.f, t:S.t, up:S.up, moves:S.moves}); }
+function snap(){ return JSON.stringify({stock:S.stock, waste:S.waste, f:S.f, t:S.t, up:S.up, moves:S.moves, n: S.log ? S.log.length : null}); }
 function pushHistory(){ history.push(snap()); if(history.length > 400) history.shift(); }
 function undo(){
-  if(busy || !history.length) return;
-  Object.assign(S, JSON.parse(history.pop()));
+  if(busy || R || !history.length) return;
+  const prev = JSON.parse(history.pop()), n = prev.n;
+  delete prev.n;
+  Object.assign(S, prev);
+  if(S.log && n != null) S.log.length = n;
   S.moves++; S.dismissed = false;
   render(); save(); hud(); scheduleStuck();
 }
@@ -775,6 +1131,7 @@ function doMove(fromRef, index, toRef){
   const from = getPile(fromRef), to = getPile(toRef);
   const ids = from.splice(index);
   to.push(...ids);
+  if(S.log) S.log.push({f: {...fromRef}, i: index, t: {...toRef}});
   if(fromRef.k === 't' && from.length && !S.up[last(from)]) S.up[last(from)] = true;
   S.moves++; startClock();
   render(ids); save(); hud();
@@ -783,12 +1140,12 @@ function doMove(fromRef, index, toRef){
 function draw(){
   if(busy) return;
   if(S.stock.length){
-    pushHistory();
+    pushHistory(); if(S.log) S.log.push({d: 1});
     const n = Math.min(S.draw, S.stock.length), moved = [];
     for(let i = 0; i < n; i++){ const id = S.stock.pop(); S.up[id] = true; S.waste.push(id); moved.push(id); }
     S.moves++; startClock(); render(moved);
   } else if(S.waste.length){
-    pushHistory();
+    pushHistory(); if(S.log) S.log.push({d: 1});
     S.stock = S.waste.reverse(); S.waste = [];
     S.stock.forEach(id => S.up[id] = false);
     S.moves++; render();
@@ -866,6 +1223,7 @@ function isStuck(){
   try{ return !KL.hasUsefulMove(toPos(S)); }catch(e){ return false; }
 }
 function checkStuck(){
+  if(R) return;
   if(busy || P){ scheduleStuck(); return; }
   if(!isStuck()) return;
   if(S.dismissed) return;
@@ -898,6 +1256,7 @@ function showVerdict(){
   $('stRestart').classList.toggle('lead', v === 'win');
   $('stNew').classList.toggle('lead', v === 'lose');
   $('stUndo').disabled = !history.length;
+  $('stReview').hidden = v === 'lose' || !canReview();
 }
 
 /* ---------- hints ---------- */
@@ -1027,7 +1386,7 @@ function dealAnim(){
 
 /* ---------- pointer: tap or drag ---------- */
 board.addEventListener('pointerdown', e => {
-  if(busy || (e.button && e.button !== 0)) return;
+  if(busy || R || (e.button && e.button !== 0)) return;
   const cardEl = e.target.closest('.card'), slotEl = e.target.closest('.slot');
   P = {x: e.clientX, y: e.clientY, id: cardEl && cardEl.dataset.id, slot: slotEl && slotEl.dataset.slot, drag: false};
   if(P.id){
@@ -1088,6 +1447,227 @@ function drop(p){
   render(p.ids);
 }
 
+/* ---------- game review ---------- */
+// Two tracks through the game. "you" is what you played: states[0..n]. "win" shares
+// your moves up to the turning point k, then follows a winning line from there.
+// The view shows a position and describes the move made from it, with that move's
+// cards outlined on the table.
+const REVIEW_KEY = 'klondike-review-v1';
+const canReview = () => { const g = live(); return !!(g && g.log && g.log.length && !g.won); };
+function startReview(from){
+  const real = live();
+  if(!canReview()) return;
+  const states = RV.replay(real.seed, real.draw, real.log);
+  if(!states || !RV.sameTable(states[states.length - 1], real)){ toast("Couldn't replay this game"); return; }
+  $('stuck').hidden = true; $('sheet').hidden = true;
+  const n = states.length - 1;
+  R = {real, from, states, n, stuck: isStuckState(real), track: 'you', i: n, tp: null, line: null, worker: null, tried: 0, playing: null};
+  $('review').hidden = false; document.querySelector('.tools').hidden = true;
+  const k = dealKey(real), logStr = JSON.stringify(real.log);
+  let cached = null;
+  try{ const c = JSON.parse(localStorage.getItem(REVIEW_KEY)); if(c && c.key === k && c.log === logStr) cached = c.tp; }catch(e){}
+  if(cached) finishReview(cached, false);
+  else runReview(states, k, logStr, real);
+  show(true);
+}
+function runReview(states, k, logStr, real){
+  const known = {}, v = verdicts[k];
+  if(v === 'win' || v === 'lose') known[0] = v;
+  if(R.stuck) known[R.n] = 'lose';
+  const positions = states.map(toPos);
+  const done = tp => {
+    if(!R) return;
+    R.worker = null;
+    try{ localStorage.setItem(REVIEW_KEY, JSON.stringify({key: k, log: logStr, tp})); }catch(e){}
+    finishReview(tp, true);
+  };
+  const job = {type: 'review', positions, known, ms: 90000, perMs: 25000, quickMs: 3000, tableBits: 21};
+  try{
+    if(!workerUrl) workerUrl = URL.createObjectURL(new Blob([$('klsrc').textContent + WORKER_GLUE], {type: 'text/javascript'}));
+    const w = new Worker(workerUrl);
+    R.worker = w;
+    w.onmessage = e => {
+      if(!R || R.worker !== w) return;
+      if(e.data.type === 'progress'){ R.tried = e.data.tried; show(); }
+      else { w.terminate(); done(e.data.tp); }
+    };
+    w.onerror = ev => { ev.preventDefault && ev.preventDefault(); if(R && R.worker === w){ R.worker = null; here(); } };
+    w.postMessage(job);
+  }catch(e){ here(); }
+  // Without background workers: a shorter search on the page itself.
+  function here(){ setTimeout(() => { if(!R) return; let tp; try{ tp = KL.turningPoint(positions, {...job, ms: 8000, quickMs: 1000, perMs: 4000}); }catch(e){ tp = {k: -1, lost: R.n + 1, exact: false}; } done(tp); }, 50); }
+}
+function isStuckState(g){ try{ return !KL.hasUsefulMove(toPos(g)); }catch(e){ return false; } }
+function finishReview(tp, jump){
+  R.tp = tp;
+  if(tp.k >= 0 && tp.path){
+    R.line = RV.lineFrom(R.states[tp.k], tp.path);
+    if(!R.line) R.tp = {...tp, k: -1};
+  }
+  if(R.tp.k >= 0){ R.track = 'win'; R.i = R.tp.k; }
+  show(true);
+}
+function endReview(){
+  if(!R) return;
+  stopPlay();
+  if(R.worker){ R.worker.terminate(); R.worker = null; }
+  const from = R.from;
+  S = R.real; R = null;
+  clearMarks();
+  $('review').hidden = true; document.querySelector('.tools').hidden = false;
+  board.classList.add('still'); render(); void board.offsetWidth; board.classList.remove('still');
+  hud();
+  if(from === 'stuck' && isStuck()) openStuck();
+}
+
+// Positions and moves on the current track.
+function trackLen(){ return R.track === 'win' && R.line ? R.tp.k + R.line.steps.length : R.n; }
+function stateAt(i){ return R.track === 'win' && R.line && i > R.tp.k ? R.line.states[i - R.tp.k] : R.states[i]; }
+function moveAt(i){
+  // {kind:'you', act} for one of your moves, {kind:'win', step} for the winning line.
+  if(R.track === 'win' && R.line && i >= R.tp.k) return i - R.tp.k < R.line.steps.length ? {kind: 'win', step: R.line.steps[i - R.tp.k]} : null;
+  return i < R.n ? {kind: 'you', act: R.real.log[i]} : null;
+}
+function step(d){ stopPlay(); go(R.i + d); }
+function go(i, still){
+  if(!R) return;
+  const prevI = R.i;
+  i = Math.max(0, Math.min(trackLen(), i));
+  const boost = i === prevI + 1 ? movedIds(prevI) : null;
+  R.i = i;
+  show(still || Math.abs(i - prevI) > 1, boost);
+}
+function movedIds(i){
+  const m = moveAt(i); if(!m) return null;
+  const g = stateAt(i);
+  if(m.kind === 'you') return RV.cardsOf(g, m.act);
+  const a = m.step.acts[m.step.taps];
+  const h = RV.clone(g); for(let t = 0; t < m.step.taps; t++) RV.apply(h, m.step.acts[t]);
+  return a && !a.d ? RV.cardsOf(h, a) : null;
+}
+function clearMarks(){
+  board.querySelectorAll('.mark-you,.mark-win').forEach(el => el.classList.remove('mark-you', 'mark-win'));
+}
+// Outline the cards a move picks up and where they land.
+function markAct(g, a, cls){
+  if(a.d){ const el = g.stock.length ? els[last(g.stock)] : slots.s; el.classList.add(cls); return; }
+  RV.cardsOf(g, a).forEach(id => els[id].classList.add(cls));
+  const dst = RV.pile(g, a.t);
+  (dst.length ? els[last(dst)] : slots[a.t.k + a.t.i]).classList.add(cls);
+}
+function markStep(g, st, cls){
+  if(st.finish) return;
+  if(st.taps){ (g.stock.length ? els[last(g.stock)] : slots.s).classList.add(cls); const dst = st.acts[st.taps].t; const p = RV.pile(g, dst); (p.length ? els[last(p)] : slots[dst.k + dst.i]).classList.add(cls); return; }
+  markAct(g, st.acts[0], cls);
+}
+const el = (tag, cls, text) => { const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; };
+function row(tagCls, tagText, text){ const r = el('div', 'rv-row'); r.append(el('span', 'tag ' + tagCls, tagText), el('span', '', text)); return r; }
+
+function show(still, boost){
+  const tp = R.tp, i = R.i, n = R.n, k = tp ? tp.k : -1;
+  const g = stateAt(i);
+  S = {...RV.clone(g), seed: R.real.seed, draw: R.real.draw, moves: i, elapsed: R.real.elapsed, started: true, won: false};
+  if(still){ board.classList.add('still'); render(); void board.offsetWidth; board.classList.remove('still'); }
+  else render(boost);
+  hud();
+  clearMarks();
+
+  // tabs
+  const hasLine = !!(tp && R.line);
+  $('rvWin').disabled = !hasLine;
+  $('rvYou').setAttribute('aria-selected', R.track === 'you');
+  $('rvWin').setAttribute('aria-selected', R.track === 'win');
+  $('rvJump').hidden = !hasLine || i === k;
+
+  // where we are, and whether the deal could still be won from here
+  const len = trackLen(), onLine = R.track === 'win' && hasLine && i > k;
+  $('rvCount').textContent = onLine ? `Winning line · step ${i - k} of ${len - k}` : i < n ? `Move ${i + 1} of ${n}` : `End · ${n} moves`;
+  const st = $('rvState');
+  st.hidden = !tp;
+  if(tp){
+    let cls = 'maybe', txt = 'Not sure';
+    if(onLine || (k >= 0 && i <= k)){ cls = 'ok'; txt = 'Winnable'; }
+    else if(i >= tp.lost){ cls = 'lost'; txt = 'Lost'; }
+    st.className = 'state ' + cls; st.textContent = txt;
+  }
+
+  // what happens next
+  const body = $('rvBody'); body.replaceChildren();
+  const m = moveAt(i);
+  if(!tp){
+    body.append(el('p', 'rv-text', 'Finding the move where this game slipped away…'),
+      el('p', 'rv-sub', R.tried ? `Checked ${R.tried} position${R.tried === 1 ? '' : 's'} so far. You can step through your game meanwhile.` : 'This usually takes a few seconds, sometimes up to a minute and a half.'));
+    if(m) markAct(g, m.act, 'mark-you'), body.append(row('you', 'You', RV.actText(g, m.act)));
+  } else if(hasLine && i === k){
+    // The turning point: your move and the winning move side by side.
+    const yours = i < n ? RV.actText(g, R.real.log[i]) : null;
+    const win = R.line.steps.length ? RV.stepText(R.line.steps[0]) : 'Nothing: the game is won from here';
+    if(i < n) markAct(g, R.real.log[i], 'mark-you');
+    if(R.line.steps.length) markStep(g, R.line.steps[0], 'mark-win');
+    if(i === n){
+      body.append(el('p', 'rv-text', 'You can still win this one. Here is the way through:'), row('win', 'Next', win));
+    } else {
+      body.append(row('you', 'You', yours), row('win', 'Win', win));
+      body.append(el('p', 'rv-sub', tp.exact
+        ? 'Until here the deal could still be won; after your move it couldn’t. The winning line knows where every card is, face-down ones included.'
+        : `The last point a win could be confirmed. By move ${Math.min(tp.lost, n)} it was certainly lost. The winning line knows where every card is.`));
+    }
+  } else if(m && m.kind === 'win'){
+    markStep(g, m.step, 'mark-win');
+    body.append(row('win', 'Win', RV.stepText(m.step)));
+  } else if(m){
+    markAct(g, m.act, 'mark-you');
+    body.append(row('you', 'You', RV.actText(g, m.act)));
+    if(hasLine && i < k && i === 0) body.append(el('p', 'rv-sub', `Your first ${k} moves kept the deal winnable. Jump to the turning point to see where it went wrong.`));
+  } else if(R.track === 'win' && hasLine){
+    body.append(el('p', 'rv-text', 'Won. Every card is on the foundations.'), el('p', 'rv-sub', 'Replay the deal to try it yourself.'));
+  } else {
+    body.append(el('p', 'rv-text', R.stuck ? 'This is where you ran out of useful moves.' : 'This is where your game is now.'));
+    if(hasLine) body.append(el('p', 'rv-sub', 'Switch to Winning line to see how it could have gone.'));
+  }
+  if(tp && k < 0 && i === n){
+    body.replaceChildren(el('p', 'rv-text', tp.lost === 0
+      ? 'This deal couldn’t be won from the start, even knowing where every card was. Nothing you did lost it.'
+      : 'This deal was too complex to check all the way through, so there’s no winning line to show.'));
+    if(tp.lost > 0 && tp.lost <= n) body.append(el('p', 'rv-sub', `It was certainly lost by move ${tp.lost}.`));
+  }
+
+  $('rvStart').disabled = i === 0;
+  $('rvPrev').disabled = i === 0;
+  $('rvNext').disabled = i >= len;
+  $('rvPlay').disabled = i >= len && !R.playing;
+  $('rvPlay').textContent = R.playing ? 'Pause' : 'Play';
+}
+function stopPlay(){ if(R && R.playing){ clearInterval(R.playing); R.playing = null; } }
+function togglePlay(){
+  if(R.playing){ stopPlay(); show(true); return; }
+  if(R.i >= trackLen()) return;
+  R.playing = setInterval(() => {
+    if(!R || R.i >= trackLen()){ stopPlay(); if(R) show(true); return; }
+    go(R.i + 1);
+  }, reduced ? 1400 : 1100);
+  show(true);
+}
+function setTrack(t){
+  if(!R || R.track === t || (t === 'win' && !R.line)) return;
+  stopPlay();
+  R.track = t;
+  // Past the turning point the tracks differ, so jump back to it.
+  if(R.tp && R.tp.k >= 0 && R.i > R.tp.k) R.i = R.tp.k;
+  show(true);
+}
+$('rvYou').onclick = () => setTrack('you');
+$('rvWin').onclick = () => setTrack('win');
+$('rvPrev').onclick = () => step(-1);
+$('rvNext').onclick = () => step(1);
+$('rvStart').onclick = () => { stopPlay(); go(0, true); };
+$('rvPlay').onclick = togglePlay;
+$('rvJump').onclick = () => { stopPlay(); go(R.tp.k, true); };
+$('rvClose').onclick = endReview;
+$('rvReplay').onclick = () => { const g = R.real; endReview(); newGame(g.draw, g.seed); };
+$('stReview').onclick = () => startReview('stuck');
+$('optReview').onclick = () => startReview('menu');
+
 /* ---------- menus ---------- */
 function newGame(draw, seed){
   S = deal(seed ?? (Math.floor(Math.random() * 900000) + 100000), draw);
@@ -1101,6 +1681,7 @@ function openSheet(){
   $('replayLabel').textContent = `Replay deal ${S.seed}`;
   $('optD1').classList.toggle('current', S.draw === 1);
   $('optD3').classList.toggle('current', S.draw === 3);
+  $('optReview').hidden = !canReview();
   $('sheet').hidden = false;
 }
 const closeSheet = () => $('sheet').hidden = true;
@@ -1119,13 +1700,19 @@ $('stClose').onclick = closeStuck;
 $('stuck').addEventListener('click', e => { if(e.target.id === 'stuck') closeStuck(); });
 $('btnAgain').onclick = () => newGame(S.draw);
 document.addEventListener('keydown', e => {
+  if(R){
+    if(e.key === 'ArrowRight') step(1);
+    else if(e.key === 'ArrowLeft') step(-1);
+    else if(e.key === 'Escape') endReview();
+    return;
+  }
   if(e.key === 'Escape'){ closeSheet(); closeStuck(); }
   if((e.ctrlKey || e.metaKey) && e.key === 'z'){ e.preventDefault(); undo(); }
 });
 
 /* ---------- clock ---------- */
 setInterval(() => {
-  if(S && S.started && !S.won && !document.hidden && $('sheet').hidden && $('stuck').hidden){
+  if(S && !R && S.started && !S.won && !document.hidden && $('sheet').hidden && $('stuck').hidden){
     S.elapsed++; $('time').textContent = fmt(S.elapsed);
     if(S.elapsed % 5 === 0) save();
   }
@@ -1157,7 +1744,7 @@ function start(data){
     requestAnimationFrame(() => board.classList.remove('still'));
   }).observe(board);
 }
-try{ window.claude?.hot?.snapshot?.(() => ({S, history})); }catch(e){}
+try{ window.claude?.hot?.snapshot?.(() => ({S: live(), history})); }catch(e){}
 window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
 })();
 </script>

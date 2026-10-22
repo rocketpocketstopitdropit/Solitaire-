@@ -385,7 +385,70 @@ var KL = (function () {
     return false;
   }
 
-  return { solve: solve, hasUsefulMove: hasUsefulMove };
+  // ---------- turning point (for reviewing a finished game) ----------
+  // positions[i] is the position after the player's i-th move (positions[0] is the deal).
+  // Finds the last position from which the deal could still be won, seeing every card.
+  // Each position follows from the one before by a legal move, so once a position is
+  // lost every later one is too. That makes a binary search work: about log2(n) solves.
+  // Returns { k, lost, exact, path, tried }:
+  //   k     last position proven winnable (-1 if none), with path = a winning line from it
+  //   lost  first position proven lost (positions.length if none)
+  //   exact true when lost === k + 1, so the move from k to k+1 is the one that lost it
+  function turningPoint(positions, opts) {
+    opts = opts || {};
+    var n = positions.length - 1, end = Date.now() + (opts.ms || 60000);
+    var per = opts.perMs || 20000, bits = opts.tableBits || 21;
+    var status = {}, paths = {}, tried = 0, i;
+    if (opts.known) for (i in opts.known) status[i] = opts.known[i];
+    function check(i, force) {
+      if (status[i] && !(force && status[i] === 'win' && !paths[i])) return status[i];
+      var left = end - Date.now();
+      if (left <= 0 && !force) return 'unknown';
+      var r = { result: 'unknown' };
+      for (var b = bits; b >= 17; b -= 2) {
+        try {
+          r = solve(positions[i], { trace: true, tableBits: b, maxNodes: Math.floor((1 << b) * 0.68), deadline: Date.now() + Math.max(2000, Math.min(per, left)) });
+          break;
+        } catch (e) { r = { result: 'unknown' }; }
+      }
+      tried++;
+      if (r.result !== 'unknown' || !status[i]) status[i] = r.result;
+      if (r.path) paths[i] = r.path;
+      if (opts.progress) opts.progress({ tried: tried, index: i, result: r.result });
+      return status[i];
+    }
+    var lo = -1, hi = n + 1;
+    function settle(i) { var r = check(i); if (r === 'win' && i > lo) lo = i; else if (r === 'lose' && i < hi) hi = i; }
+    for (i in status) { if (status[i] === 'win' && +i > lo) lo = +i; if (status[i] === 'lose' && +i < hi) hi = +i; }
+    // Most positions settle in well under a second. A first pass gives each a short
+    // time; a second pass spends longer only on the ones still in the way.
+    var full = per;
+    for (var pass = 0; pass < 2 && hi - lo > 1; pass++) {
+      per = pass ? full : Math.min(full, opts.quickMs || 3000);
+      if (pass) for (i in status) if (status[i] === 'unknown' && +i >= lo && +i <= hi) delete status[i];
+      // The end of the game first: if it can still be won, nothing has gone wrong yet.
+      if (hi > n && !status[n]) settle(n);
+      if (lo < 0 && hi > 0 && !status[0]) settle(0);
+      while (hi - lo > 1 && Date.now() < end) {
+        // Middle of the open range; skip positions the solver couldn't settle, leaning
+        // later (later positions have fewer cards in play and solve faster).
+        var ideal = (lo + hi) / 2, best = -1, bd = Infinity;
+        for (i = Math.max(0, lo + 1); i < Math.min(hi, n + 1); i++) {
+          if (status[i]) continue;
+          var d = Math.abs(i - ideal) - (i > ideal ? 0.25 : 0);
+          if (d < bd) { bd = d; best = i; }
+        }
+        if (best < 0) break;
+        settle(best);
+      }
+    }
+    per = full;
+    // A winnable start known from an earlier check has no line yet: solve it once more.
+    if (lo >= 0 && !paths[lo]) { check(lo, true); if (!paths[lo]) lo = -1; }
+    return { k: lo, lost: hi, exact: lo >= 0 && hi === lo + 1, path: lo >= 0 ? paths[lo] : null, tried: tried };
+  }
+
+  return { solve: solve, hasUsefulMove: hasUsefulMove, turningPoint: turningPoint };
 })();
 
 if (typeof module !== 'undefined') module.exports = KL;

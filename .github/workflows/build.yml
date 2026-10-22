@@ -30,6 +30,11 @@ jobs:
       - name: Check the deal solver
         run: node test/verify.js
 
+      # Plays games until stuck, then checks each review: the move log replays exactly,
+      # and the winning line from the turning point plays out to a win.
+      - name: Check game reviews
+        run: node test/review.js 12 0 20000
+
       - name: Build debug APK
         run: |
           set -o pipefail

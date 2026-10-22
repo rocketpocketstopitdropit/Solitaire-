@@ -9,8 +9,10 @@ import pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
 game = (root / 'src' / 'game.html').read_text()
 solver = (root / 'src' / 'solver.js').read_text()
+review = (root / 'src' / 'review.js').read_text()
 assert '/*@SOLVER@*/' in game
-game = game.replace('/*@SOLVER@*/', solver.strip())
+# Both go in one script tag: the page uses them, and the background worker is built from it.
+game = game.replace('/*@SOLVER@*/', solver.strip() + '\n\n' + review.strip())
 
 (root / 'dist').mkdir(exist_ok=True)
 (root / 'dist' / 'artifact.html').write_text(game)
